@@ -345,7 +345,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
         `; 
         return; 
       }
-      $("schedule").innerHTML = `<div class="card"><h2>Booking Requests</h2><div class="btn-row"><button class="btn secondary" type="button" onclick="clearOldBookingRequests()">Clear Old Requests</button></div><div class="list">${pendingBookingRequests().length ? pendingBookingRequests().map(r=>bookingRequestRow(r)).join("") : `<div class="empty">No pending requests.</div>`}</div></div><div class="card"><h2>Schedule</h2><div class="list">${state.appointments.length ? state.appointments.map(a=>appointmentRow(a,true)).join("") : `<div class="empty">No appointments scheduled.</div>`}</div><div class="btn-row"><button class="btn primary" onclick="openAddAppointment()">Add Appointment</button></div></div>`;
+      $("schedule").innerHTML = `<div class="card"><h2>Booking Requests</h2><div class="btn-row"><button class="btn secondary" type="button" onclick="clearOldBookingRequests()">Clear Old Requests</button></div><div class="list">${pendingBookingRequests().length ? pendingBookingRequests().map(r=>bookingRequestRow(r)).join("") : `<div class="empty">No pending requests.</div>`}</div></div><div class="card"><h2>Schedule</h2><div class="list">${state.appointments.filter(a => (a.status || "scheduled") !== "cancelled").length ? state.appointments.filter(a => (a.status || "scheduled") !== "cancelled").map(a=>appointmentRow(a,true)).join("") : `<div class="empty">No appointments scheduled.</div>`}</div><div class="btn-row"><button class="btn primary" onclick="openAddAppointment()">Add Appointment</button></div></div>`;
     }
     function renderProfile() {
       const profile = state.userProfile || {};
@@ -479,7 +479,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           ${r.notes ? `<span class="small">${escapeHtml(r.notes)}</span>` : ""}
           <span class="btn-row">
             <button class="btn secondary" onclick="acceptBookingRequest('${r.id}')">Accept</button>
-            <button class="btn danger" onclick="declineBookingRequest('${r.id}')">Decline</button>
+            <button class="btn danger" onclick="confirmDeclineBookingRequest('${r.id}')">Decline</button>
           </span>
           <span class="btn-row">
             <button class="btn danger" type="button" onclick="deleteBookingRequest('${r.id}')">Delete Request</button>
@@ -769,22 +769,26 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           clientId = newClient.id;
         }
 
-        await addDoc(collection(db, "appointments"), {
+        const appointmentRef = await addDoc(collection(db, "appointments"), {
           barberId: currentUser.uid,
           clientId,
+          clientUserId: request.clientUserId || "",
+          clientName: request.clientName || "",
           date: request.date,
           time: request.time,
           service: request.service,
           notes: request.notes || "",
           status: "scheduled",
           source: "bookingRequest",
-          requestId,
+          requestId: requestId,
           createdAt: serverTimestamp()
         });
 
         await updateDoc(doc(db, "bookingRequests", requestId), {
           status: "accepted",
-          acceptedAt: serverTimestamp()
+          acceptedAt: serverTimestamp(),
+          appointmentId: appointmentRef.id,
+          linkedClientId: clientId
         });
 
         alert("Booking accepted and appointment created.");
@@ -794,45 +798,84 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     }
 
 
-
-    window.cancelAppointment = async function(appointmentId) {
+    window.cancelAppointmentAndSync = async function(appointmentId) {
       const appt = (state.appointments || []).find(a => a.id === appointmentId);
       if (!appt) return alert("Appointment not found.");
 
       const label = `${appt.service || "Appointment"} on ${formatDate(appt.date)} at ${formatTime(appt.time)}`;
-
-      if (!confirm(`Are you sure you want to cancel this appointment?\n\n${label}`)) return;
+      const confirmed = confirm(`Are you sure you want to cancel this appointment?\n\n${label}\n\nThis will also update the client side.`);
+      if (!confirmed) return;
 
       try {
         await updateDoc(doc(db, "appointments", appointmentId), {
           status: "cancelled",
-          cancelledAt: serverTimestamp()
+          cancelledAt: serverTimestamp(),
+          cancelledBy: "barber"
         });
 
-        if (appt.requestId) {
-          await updateDoc(doc(db, "bookingRequests", appt.requestId), {
+        let requestIdToUpdate = appt.requestId || "";
+
+        if (!requestIdToUpdate) {
+          const byAppointmentSnap = await getDocs(query(
+            collection(db, "bookingRequests"),
+            where("appointmentId", "==", appointmentId),
+            limit(1)
+          ));
+
+          if (!byAppointmentSnap.empty) {
+            requestIdToUpdate = byAppointmentSnap.docs[0].id;
+          }
+        }
+
+        if (!requestIdToUpdate) {
+          const fallbackSnap = await getDocs(query(
+            collection(db, "bookingRequests"),
+            where("barberId", "==", currentUser.uid),
+            where("date", "==", appt.date),
+            where("time", "==", appt.time)
+          ));
+
+          const match = fallbackSnap.docs.find(d => {
+            const r = d.data();
+            const sameClientUser = appt.clientUserId && r.clientUserId === appt.clientUserId;
+            const sameService = !appt.service || !r.service || r.service === appt.service;
+            const activeStatus = (r.status || "pending") === "accepted" || (r.status || "pending") === "pending";
+            return activeStatus && sameService && (sameClientUser || r.clientName === appt.clientName);
+          });
+
+          if (match) requestIdToUpdate = match.id;
+        }
+
+        if (requestIdToUpdate) {
+          await updateDoc(doc(db, "bookingRequests", requestIdToUpdate), {
             status: "cancelled",
             cancelledAt: serverTimestamp(),
-            cancellationSource: "barber"
+            cancelledBy: "barber",
+            appointmentId: appointmentId
           });
+        } else {
+          console.warn("No matching booking request found to update for appointment", appointmentId);
         }
 
         state.appointments = (state.appointments || []).filter(a => a.id !== appointmentId);
         state.bookingRequests = (state.bookingRequests || []).map(r => {
-          if (r.id === appt.requestId) {
-            return { ...r, status: "cancelled" };
-          }
+          if (r.id === requestIdToUpdate) return { ...r, status: "cancelled" };
           return r;
         });
 
         render();
-        alert("Appointment cancelled. Client status updated.");
+        alert(requestIdToUpdate ? "Appointment cancelled. Client status updated." : "Appointment cancelled, but no linked request was found.");
       } catch (err) {
         alert("Cancel failed: " + err.message);
       }
     }
 
+    window.cancelAppointment = window.cancelAppointmentAndSync;
 
+
+    window.cancelAppointment = window.cancelAppointmentAndSync;
+
+    
     window.clearOldBookingRequests = async function() {
       const oldRequests = (state.bookingRequests || []).filter(r => (r.status || "pending") !== "pending");
       if (!oldRequests.length) return alert("No old requests to clear.");
@@ -858,20 +901,37 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     }
 
 
-    window.declineBookingRequest = async function(requestId) {
-      if (!confirm("Decline this booking request?")) return;
+    window.confirmDeclineBookingRequest = async function(requestId) {
+      const request = (state.bookingRequests || []).find(r => r.id === requestId);
+      const label = request
+        ? `${request.service || "Booking request"} on ${formatDate(request.date)} at ${formatTime(request.time)}`
+        : "this booking request";
+
+      const confirmed = confirm(`Are you sure you want to decline/cancel ${label}?\n\nThe client will see this as cancelled/declined.`);
+      if (!confirmed) return;
 
       try {
         await updateDoc(doc(db, "bookingRequests", requestId), {
           status: "declined",
-          declinedAt: serverTimestamp()
+          declinedAt: serverTimestamp(),
+          declinedBy: "barber"
         });
+
+        state.bookingRequests = (state.bookingRequests || []).map(r => {
+          if (r.id === requestId) return { ...r, status: "declined" };
+          return r;
+        });
+
+        render();
+        alert("Request declined.");
       } catch (err) {
         alert("Decline failed: " + err.message);
       }
     }
 
+    window.declineBookingRequest = window.confirmDeclineBookingRequest;
 
+    
     window.openAddClient = function() { openModal("Add Client", `<label>Name</label><input id="clientName" placeholder="Client name" /><label>Phone</label><input id="clientPhone" placeholder="Phone number" /><label>Haircut Preferences</label><textarea id="clientPreferences" placeholder="Example: mid fade, textured top"></textarea><label>Private Notes</label><textarea id="clientNotes" placeholder="Anything useful to remember"></textarea><div class="btn-row"><button class="btn primary" onclick="addClient()">Save Client</button></div>`); }
     window.addClient = async function() { const name=val("clientName"); if(!name) return alert("Add a client name first."); try { await addDoc(collection(db,"clients"), { barberId:currentUser.uid, name, phone:val("clientPhone"), preferences:val("clientPreferences"), notes:val("clientNotes"), createdAt:serverTimestamp() }); closeModal(); } catch(err) { alert("Client save failed: " + err.message); } }
     window.openAddCut = function(clientId="") { const selected = clientId || selectedClientId || ""; openModal("Add Cut", `<label>Client</label><select id="cutClient">${state.clients.map(c=>`<option value="${c.id}" ${c.id===selected?"selected":""}>${escapeHtml(c.name)}</option>`).join("")}</select><label>Date</label><input id="cutDate" type="date" value="${getToday()}" /><label>Style</label><input id="cutStyle" placeholder="Example: Mid fade, burst fade, taper" /><label>Tags</label><input id="cutTags" placeholder="mid fade, textured top, beard trim" /><label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;"><input type="checkbox" id="cutPublicToggle" /> Show on Public Profile</label><label>Notes</label><textarea id="cutNotes" placeholder="What guard, shape, blend notes, neckline, etc."></textarea><label>Photos</label><input id="cutPhotos" type="file" accept="image/*" multiple /><div class="btn-row"><button class="btn primary" onclick="addCut()">Save Cut</button></div>`); }
