@@ -356,7 +356,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
 
       $("profile").innerHTML = `
         <div class="card">
-          <h2>Account Settings</h2>
+          <div class="profile-top-actions" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;"><h2 style="margin:0;">Account Settings</h2><button class="btn secondary" type="button" onclick="openProfileMenu()" style="width:auto;padding:10px 14px;">Menu</button></div>
           <p class="muted">Email: ${escapeHtml(profile.email || currentUser.email || "")}</p>
           <p class="muted">Phone: ${phoneDisplay}</p>
           <div class="tag-wrap">${roles.map(r=>`<span class="pill success">${r}</span>`).join("")}</div>
@@ -1219,6 +1219,52 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     window.declineBookingRequest = window.openDeclineRequestConfirm;
 
     
+
+    function applyRoleBasedNavLabels() {
+      const navButtons = Array.from(document.querySelectorAll(".nav-btn"));
+      if (!navButtons.length || !state.userProfile) return;
+
+      const barberLabels = {
+        dashboard: ["⌂", "Home"],
+        clients: ["✂️", "Clients"],
+        schedule: ["◷", "Schedule"],
+        settings: ["◎", "Profile"]
+      };
+
+      const clientLabels = {
+        dashboard: ["⌂", "Discover"],
+        clients: ["♡", "Saved"],
+        schedule: ["◷", "Appointments"],
+        settings: ["◎", "Profile"]
+      };
+
+      const labels = isBarberMode() ? barberLabels : clientLabels;
+
+      navButtons.forEach(btn => {
+        const page = btn.dataset.page;
+        if (!labels[page]) return;
+
+        const icon = btn.querySelector("span");
+        const text = btn.querySelector("small");
+
+        if (icon) icon.textContent = labels[page][0];
+        if (text) text.textContent = labels[page][1];
+      });
+    }
+
+
+
+    window.openProfileMenu = function() {
+      openModal("Profile Menu", `
+        <div class="list">
+          <button class="btn secondary" type="button" onclick="closeModal(); openEditAccount();">Edit Account Info</button>
+          <button class="btn secondary" type="button" onclick="closeModal(); openEditUsername();">Edit Username</button>
+          <button class="btn danger" type="button" onclick="logout()">Logout</button>
+        </div>
+      `);
+    }
+
+
     function showRuntimeError(message) { console.error(message); $("syncStatus").textContent="Sync Error"; alert(message); }
     function val(id) { return $(id)?.value.trim() || ""; }
     function getToday() { return new Date().toISOString().split("T")[0]; }

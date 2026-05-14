@@ -1,10 +1,19 @@
-# Trimline Stable Rollback
+# Trimline Safe Nav v1
 
-This restores the last stable working version before the nav restructure broke login.
+Safer navigation update:
+- Does NOT touch login/signup/auth logic
+- Keeps existing routes intact
+- Barber nav labels:
+  - Home
+  - Clients
+  - Schedule
+  - Profile
+- Client nav labels:
+  - Discover
+  - Saved
+  - Appointments
+  - Profile
+- Settings route still works internally, but displays as Profile
+- Adds a simple Profile Menu button inside the profile/settings screen
 
-Use this immediately to get the app working again:
-- Upload index.html and README.md to GitHub
-- Commit changes
-- Let Vercel redeploy
-
-After login works again, we can reattempt split nav more carefully.
+This is a safer first step after the previous nav restructure broke login buttons.
