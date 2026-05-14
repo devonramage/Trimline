@@ -64,6 +64,12 @@
     .profile-handle{font-weight:800;color:#fff}
     .service-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
     .profile-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+  
+    .portfolio-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}
+    .portfolio-item{position:relative;overflow:hidden;border-radius:16px;border:1px solid var(--border);background:#111;aspect-ratio:1/1}
+    .portfolio-item img{width:100%;height:100%;object-fit:cover;display:block}
+    .portfolio-empty{padding:18px;border:1px dashed var(--border);border-radius:16px;color:#aaa;text-align:center}
+    .portfolio-badge{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.72);padding:5px 9px;border-radius:999px;font-size:11px;font-weight:700}
   </style>
 </head>
 <body>
@@ -795,7 +801,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
 
     window.openAddClient = function() { openModal("Add Client", `<label>Name</label><input id="clientName" placeholder="Client name" /><label>Phone</label><input id="clientPhone" placeholder="Phone number" /><label>Haircut Preferences</label><textarea id="clientPreferences" placeholder="Example: mid fade, textured top"></textarea><label>Private Notes</label><textarea id="clientNotes" placeholder="Anything useful to remember"></textarea><div class="btn-row"><button class="btn primary" onclick="addClient()">Save Client</button></div>`); }
     window.addClient = async function() { const name=val("clientName"); if(!name) return alert("Add a client name first."); try { await addDoc(collection(db,"clients"), { barberId:currentUser.uid, name, phone:val("clientPhone"), preferences:val("clientPreferences"), notes:val("clientNotes"), createdAt:serverTimestamp() }); closeModal(); } catch(err) { alert("Client save failed: " + err.message); } }
-    window.openAddCut = function(clientId="") { const selected = clientId || selectedClientId || ""; openModal("Add Cut", `<label>Client</label><select id="cutClient">${state.clients.map(c=>`<option value="${c.id}" ${c.id===selected?"selected":""}>${escapeHtml(c.name)}</option>`).join("")}</select><label>Date</label><input id="cutDate" type="date" value="${getToday()}" /><label>Style</label><input id="cutStyle" placeholder="Example: Mid fade, burst fade, taper" /><label>Tags</label><input id="cutTags" placeholder="mid fade, textured top, beard trim" /><label>Notes</label><textarea id="cutNotes" placeholder="What guard, shape, blend notes, neckline, etc."></textarea><label>Photos</label><input id="cutPhotos" type="file" accept="image/*" multiple /><div class="btn-row"><button class="btn primary" onclick="addCut()">Save Cut</button></div>`); }
+    window.openAddCut = function(clientId="") { const selected = clientId || selectedClientId || ""; openModal("Add Cut", `<label>Client</label><select id="cutClient">${state.clients.map(c=>`<option value="${c.id}" ${c.id===selected?"selected":""}>${escapeHtml(c.name)}</option>`).join("")}</select><label>Date</label><input id="cutDate" type="date" value="${getToday()}" /><label>Style</label><input id="cutStyle" placeholder="Example: Mid fade, burst fade, taper" /><label>Tags</label><input id="cutTags" placeholder="mid fade, textured top, beard trim" /><label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;"><input type="checkbox" id="cutPublicToggle" /> Show on Public Profile</label><label>Notes</label><textarea id="cutNotes" placeholder="What guard, shape, blend notes, neckline, etc."></textarea><label>Photos</label><input id="cutPhotos" type="file" accept="image/*" multiple /><div class="btn-row"><button class="btn primary" onclick="addCut()">Save Cut</button></div>`); }
     window.addCut = async function() { const clientId=val("cutClient"); if(!clientId) return alert("Pick a client first."); try { const files=Array.from($("cutPhotos").files||[]).slice(0,6); const photos=[]; for (const file of files) { const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"-"); const path=`barbers/${currentUser.uid}/clients/${clientId}/cuts/${Date.now()}-${safeName}`; const storageRef=ref(storage,path); await uploadBytes(storageRef,file); photos.push(await getDownloadURL(storageRef)); } await addDoc(collection(db,"cuts"), { barberId:currentUser.uid, clientId, date:val("cutDate")||getToday(), style:val("cutStyle"), tags:val("cutTags"), notes:val("cutNotes"), photos, createdAt:serverTimestamp() }); closeModal(); } catch(err) { alert("Cut save failed: " + err.message); } }
     window.openAddAppointment = function(clientId="") { const selected = clientId || selectedClientId || ""; openModal("Add Appointment", `<label>Client</label><select id="apptClient">${state.clients.map(c=>`<option value="${c.id}" ${c.id===selected?"selected":""}>${escapeHtml(c.name)}</option>`).join("")}</select><label>Date</label><input id="apptDate" type="date" value="${getToday()}" /><label>Time</label><select id="apptTime">${timeSlotOptions()}</select><label>Service</label><input id="apptService" placeholder="Fade, taper, beard trim, etc." /><label>Notes</label><textarea id="apptNotes" placeholder="Appointment notes"></textarea><div class="btn-row"><button class="btn primary" onclick="addAppointment()">Save Appointment</button></div>`); }
     window.addAppointment = async function() { const clientId=val("apptClient"); if(!clientId) return alert("Pick a client."); try { await addDoc(collection(db,"appointments"), { barberId:currentUser.uid, clientId, date:val("apptDate")||getToday(), time:val("apptTime")||"09:00", service:val("apptService"), notes:val("apptNotes"), status:"scheduled", createdAt:serverTimestamp() }); closeModal(); } catch(err) { alert("Appointment save failed: " + err.message); } }
@@ -904,6 +910,62 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     }
 
 
+    
+    async function loadPublicPortfolio(barberId) {
+      try {
+        const q = query(
+          collection(db, "cuts"),
+          where("barberId", "==", barberId),
+          where("publicPortfolio", "==", true)
+        );
+
+        const snap = await getDocs(q);
+        const items = [];
+
+        snap.forEach(docSnap => {
+          const data = docSnap.data();
+          if (Array.isArray(data.photos) && data.photos.length) {
+            items.push({
+              id: docSnap.id,
+              createdAt: data.createdAt?.seconds || 0,
+              clientName: data.clientName || "Client",
+              photos: data.photos
+            });
+          }
+        });
+
+        items.sort((a,b)=>b.createdAt-a.createdAt);
+        return items;
+      } catch (err) {
+        console.error("Portfolio load failed:", err);
+        return [];
+      }
+    }
+
+    function renderPortfolioGrid(items) {
+      if (!items.length) {
+        return `<div class="portfolio-empty">No portfolio cuts added yet.</div>`;
+      }
+
+      return `
+        <div class="portfolio-grid">
+          ${items.map(item => `
+            <button class="portfolio-item" onclick="openPortfolioImage('${escapeAttr(item.photos[0])}', '${escapeAttr(item.clientName)}')">
+              <img src="${escapeAttr(item.photos[0])}" alt="Cut photo" />
+              <div class="portfolio-badge">${escapeHtml(item.clientName)}</div>
+            </button>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    window.openPortfolioImage = function(src, clientName) {
+      openModal(clientName || "Portfolio", `
+        <img src="${escapeAttr(src)}" style="width:100%;border-radius:18px;border:1px solid var(--border);" />
+      `);
+    }
+
+
     function barberServicesArray(barber) {
       return (barber?.services || "")
         .split(",")
@@ -945,13 +1007,19 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
 
         <div class="card">
           <h2>Portfolio</h2>
-          <div class="empty">Portfolio photos are coming next. For now, this profile is ready for booking and barber selection.</div>
+          <div id="publicPortfolioContainer">
+            <div class="empty">Loading portfolio...</div>
+          </div>
         </div>
       `;
     }
 
     function renderViewedBarberProfile() {
       $("clients").innerHTML = renderBarberProfileMarkup(viewedBarber);
+      loadPublicPortfolio(viewedBarber.id).then(items => {
+        const container = document.getElementById("publicPortfolioContainer");
+        if (container) container.innerHTML = renderPortfolioGrid(items);
+      });
     }
 
     window.backToFindBarber = function() {
