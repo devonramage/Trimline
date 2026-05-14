@@ -809,9 +809,24 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           cancelledAt: serverTimestamp()
         });
 
+        if (appt.requestId) {
+          await updateDoc(doc(db, "bookingRequests", appt.requestId), {
+            status: "cancelled",
+            cancelledAt: serverTimestamp(),
+            cancellationSource: "barber"
+          });
+        }
+
         state.appointments = (state.appointments || []).filter(a => a.id !== appointmentId);
+        state.bookingRequests = (state.bookingRequests || []).map(r => {
+          if (r.id === appt.requestId) {
+            return { ...r, status: "cancelled" };
+          }
+          return r;
+        });
+
         render();
-        alert("Appointment cancelled.");
+        alert("Appointment cancelled. Client status updated.");
       } catch (err) {
         alert("Cancel failed: " + err.message);
       }

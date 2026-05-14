@@ -1,9 +1,9 @@
-# Barber Connect Cancel Appointments v2
+# Barber Connect Cancel Sync v1
 
 Fix:
-- Cancel now updates the appointment status to "cancelled"
-- Cancelled appointments are hidden from the barber schedule
-- The appointment disappears immediately after confirming cancellation
-- Safer than hard-deleting because the database still keeps a cancellation record
+- Barber cancel now updates the appointment status to cancelled
+- If the appointment came from a booking request, the original booking request is also marked cancelled
+- Client side status updates from accepted to cancelled
+- Barber schedule removes the cancelled appointment immediately
 
-No Firebase rule changes needed if appointment updates already work.
+No Firebase rules change needed if appointment/request updates already work.
