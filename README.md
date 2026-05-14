@@ -1,10 +1,19 @@
-# Trimline Profile Layout + Pictures v2
+# Trimline Profile Layout Stable v1
 
-Hotfix:
-- Profile page buttons now use safe global handlers
-- Menu button should work
-- Edit Account Info should work
-- Profile Photo upload modal should open
-- Edit Barber Profile button should work in barber mode
+Stable profile layout update only.
 
-If profile photo upload fails, update Firebase Storage rules to allow signed-in uploads.
+Added:
+- Instagram-style profile header
+- Larger avatar with initials
+- Name / username / shop / location / bio
+- Stats row
+- Services section for barber mode
+- Client profile layout
+- Profile menu
+
+Not included yet:
+- Profile picture upload
+- Banner image upload
+- Advanced portfolio changes
+
+This version avoids Firebase Storage and keeps booking/auth logic untouched.

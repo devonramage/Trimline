@@ -71,24 +71,24 @@
     .portfolio-empty{padding:18px;border:1px dashed var(--border);border-radius:16px;color:#aaa;text-align:center}
     .portfolio-badge{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.72);padding:5px 9px;border-radius:999px;font-size:11px;font-weight:700}
   
-    .ig-profile-header{border:1px solid var(--border);background:rgba(17,17,17,.92);border-radius:22px;padding:16px;margin-bottom:12px}
-    .ig-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
-    .ig-profile-main{display:flex;align-items:center;gap:16px}
-    .ig-avatar{width:86px;height:86px;border-radius:50%;background:#fff;color:#000;display:grid;place-items:center;font-size:28px;font-weight:950;overflow:hidden;border:2px solid #333;flex:0 0 auto}
-    .ig-avatar img{width:100%;height:100%;object-fit:cover;display:block}
-    .ig-meta{flex:1;min-width:0}
-    .ig-name{font-size:22px;font-weight:950;letter-spacing:-.04em}
-    .ig-handle{color:var(--muted);font-size:13px;margin-top:2px}
-    .ig-bio{margin-top:12px;color:#ddd;font-size:14px;line-height:1.45}
-    .ig-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
-    .ig-stat{text-align:center;border:1px solid var(--border);background:#0b0b0b;border-radius:15px;padding:10px 6px}
-    .ig-stat strong{display:block;font-size:18px}
-    .ig-stat span{display:block;color:var(--muted);font-size:11px;margin-top:2px}
-    .ig-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
-    .profile-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 0 10px}
+    .tl-profile-card{background:rgba(17,17,17,.92);border:1px solid var(--border);border-radius:22px;padding:16px;margin-bottom:12px}
+    .tl-profile-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+    .tl-profile-main{display:flex;align-items:center;gap:16px}
+    .tl-avatar-large{width:86px;height:86px;border-radius:50%;background:#fff;color:#000;display:grid;place-items:center;font-size:28px;font-weight:950;border:2px solid #333;flex:0 0 auto}
+    .tl-profile-info{flex:1;min-width:0}
+    .tl-profile-name{font-size:22px;font-weight:950;letter-spacing:-.04em;line-height:1.1}
+    .tl-profile-handle{color:var(--muted);font-size:13px;margin-top:3px}
+    .tl-profile-sub{color:var(--muted);font-size:13px;margin-top:4px;line-height:1.35}
+    .tl-bio{margin-top:14px;color:#e8e8e8;font-size:14px;line-height:1.45}
+    .tl-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+    .tl-stat{text-align:center;border:1px solid var(--border);background:#0b0b0b;border-radius:15px;padding:10px 6px}
+    .tl-stat strong{display:block;font-size:18px;line-height:1}
+    .tl-stat span{display:block;color:var(--muted);font-size:11px;margin-top:4px}
+    .tl-action-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+    .tl-section-title{font-size:18px;font-weight:900;letter-spacing:-.03em;margin-bottom:10px}
   </style>
 <meta name="trimline-version" content="TRIMLINE_SAFE_NAV_V3">
-<meta name="trimline-version" content="TRIMLINE_PROFILE_PICTURES_V2">
+<meta name="trimline-version" content="TRIMLINE_PROFILE_LAYOUT_STABLE_V1">
 </head>
 <body>
   <div id="loginScreen" class="auth-screen">
@@ -398,24 +398,48 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
       $("schedule").innerHTML = `<div class="card"><h2>Booking Requests</h2><div class="btn-row"><button class="btn secondary" type="button" onclick="clearOldBookingRequests()">Clear Old Requests</button></div><div class="list">${pendingBookingRequests().length ? pendingBookingRequests().map(r=>bookingRequestRow(r)).join("") : `<div class="empty">No pending requests.</div>`}</div></div><div class="card"><h2>Schedule</h2><div class="list">${state.appointments.filter(a => (a.status || "scheduled") !== "cancelled").length ? state.appointments.filter(a => (a.status || "scheduled") !== "cancelled").map(a=>appointmentRow(a,true)).join("") : `<div class="empty">No appointments scheduled.</div>`}</div><div class="btn-row"><button class="btn primary" onclick="openAddAppointment()">Add Appointment</button></div></div>`;
     }
 
-    function profileAvatarMarkup(profile = {}, barber = {}) {
-      const photoURL = profile.photoURL || barber.photoURL || "";
-      const displayName = barber.name || profile.name || currentUser?.email || "User";
-      if (photoURL) return `<div class="ig-avatar"><img src="${escapeAttr(photoURL)}" alt="Profile photo"></div>`;
-      return `<div class="ig-avatar">${initials(displayName)}</div>`;
-    }
-
-    function currentProfileDisplay() {
+    function getProfileDisplayData() {
       const profile = state.userProfile || {};
       const barber = state.barber || {};
+      const selected = profile.selectedBarber || null;
+
+      if (isBarberMode()) {
+        return {
+          type: "Barber Profile",
+          name: barber.name || profile.name || "Barber",
+          handle: barber.username ? "@" + barber.username : "@username not set",
+          subtitle: barber.shopName || "Independent Barber",
+          location: barber.location || "Location not set",
+          bio: barber.bio || "Add a bio so clients know your style, specialties, and where you cut.",
+          services: (barber.services || "").split(",").map(s => s.trim()).filter(Boolean)
+        };
+      }
+
       return {
-        name: isBarberMode() ? (barber.name || profile.name || "Barber") : (profile.name || "Client"),
-        handle: isBarberMode() ? (barber.username ? "@" + barber.username : "@username not set") : "Client profile",
-        subtitle: isBarberMode() ? (barber.shopName || "Independent Barber") : (profile.selectedBarber?.username ? "Barber: @" + profile.selectedBarber.username : "No barber selected"),
-        bio: isBarberMode() ? (barber.bio || "Add a bio so clients know your style, location, and specialties.") : "Your client profile keeps your appointments, saved barbers, and haircut history together.",
-        location: isBarberMode() ? (barber.location || "Location not set") : "",
-        services: isBarberMode() ? (barber.services || "") : ""
+        type: "Client Profile",
+        name: profile.name || "Client",
+        handle: "Client account",
+        subtitle: selected ? `Selected barber: @${selected.username || "barber"}` : "No barber selected",
+        location: "",
+        bio: "Your profile keeps appointments, saved barbers, and haircut history together.",
+        services: []
       };
+    }
+
+    function profileStatsMarkup() {
+      if (isBarberMode()) {
+        return `
+          <div class="tl-stat"><strong>${state.clients?.length || 0}</strong><span>Clients</span></div>
+          <div class="tl-stat"><strong>${state.cuts?.length || 0}</strong><span>Cuts</span></div>
+          <div class="tl-stat"><strong>${state.appointments?.length || 0}</strong><span>Appts</span></div>
+        `;
+      }
+
+      return `
+        <div class="tl-stat"><strong>${state.bookingRequests?.length || 0}</strong><span>Requests</span></div>
+        <div class="tl-stat"><strong>${state.userProfile?.selectedBarber ? 1 : 0}</strong><span>Barbers</span></div>
+        <div class="tl-stat"><strong>0</strong><span>Photos</span></div>
+      `;
     }
 
 
@@ -423,68 +447,55 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
       const profile = state.userProfile || {};
       const b = state.barber || {};
       const roles = profile.roles || [];
-      const services = (b.services || "").split(",").map(s=>s.trim()).filter(Boolean);
-      const display = currentProfileDisplay();
+      const display = getProfileDisplayData();
       const phoneDisplay = profile.phone ? escapeHtml(profile.phone) : "No phone added";
-      const appointmentCount = state.appointments?.length || 0;
-      const cutCount = state.cuts?.length || 0;
-      const clientCount = state.clients?.length || 0;
 
       $("profile").innerHTML = `
-        <div class="ig-profile-header">
-          <div class="ig-top">
+        <div class="tl-profile-card">
+          <div class="tl-profile-top">
             <div>
-              <div class="eyebrow">${isBarberMode() ? "Barber Profile" : "Client Profile"}</div>
+              <div class="eyebrow">${escapeHtml(display.type)}</div>
               <h2 style="margin:0;">Profile</h2>
             </div>
-            <button class="btn secondary" type="button" onclick="safeOpenProfileMenu()" style="width:auto;padding:10px 14px;">Menu</button>
+            <button class="btn secondary" type="button" onclick="openProfileMenu()" style="width:auto;padding:10px 14px;">Menu</button>
           </div>
 
-          <div class="ig-profile-main">
-            ${profileAvatarMarkup(profile, b)}
-            <div class="ig-meta">
-              <div class="ig-name">${escapeHtml(display.name)}</div>
-              <div class="ig-handle">${escapeHtml(display.handle)}</div>
-              <p class="muted">${escapeHtml(display.subtitle)}</p>
-              ${display.location ? `<p class="muted">${escapeHtml(display.location)}</p>` : ""}
+          <div class="tl-profile-main">
+            <div class="tl-avatar-large">${initials(display.name)}</div>
+            <div class="tl-profile-info">
+              <div class="tl-profile-name">${escapeHtml(display.name)}</div>
+              <div class="tl-profile-handle">${escapeHtml(display.handle)}</div>
+              <div class="tl-profile-sub">${escapeHtml(display.subtitle)}</div>
+              ${display.location ? `<div class="tl-profile-sub">${escapeHtml(display.location)}</div>` : ""}
             </div>
           </div>
 
-          <p class="ig-bio">${escapeHtml(display.bio)}</p>
+          <div class="tl-bio">${escapeHtml(display.bio)}</div>
 
-          <div class="ig-stats">
-            ${isBarberMode() ? `
-              <div class="ig-stat"><strong>${clientCount}</strong><span>Clients</span></div>
-              <div class="ig-stat"><strong>${cutCount}</strong><span>Cuts</span></div>
-              <div class="ig-stat"><strong>${appointmentCount}</strong><span>Appts</span></div>
-            ` : `
-              <div class="ig-stat"><strong>${(state.bookingRequests || []).length}</strong><span>Requests</span></div>
-              <div class="ig-stat"><strong>${profile.selectedBarber ? 1 : 0}</strong><span>Barbers</span></div>
-              <div class="ig-stat"><strong>0</strong><span>Photos</span></div>
-            `}
+          <div class="tl-stats">
+            ${profileStatsMarkup()}
           </div>
 
-          <div class="ig-actions">
-            <button class="btn primary" type="button" onclick="${isBarberMode() ? "safeOpenEditProfile()" : "safeOpenEditAccount()"}">${isBarberMode() ? "Edit Barber Profile" : "Edit Profile"}</button>
-            <button class="btn secondary" type="button" onclick="safeOpenProfilePhotoModal()">Profile Photo</button>
+          <div class="tl-action-row">
+            <button class="btn primary" type="button" onclick="${isBarberMode() ? "openEditProfile()" : "openEditAccount()"}">${isBarberMode() ? "Edit Barber Profile" : "Edit Profile"}</button>
+            <button class="btn secondary" type="button" onclick="openEditAccount()">Account</button>
           </div>
         </div>
 
         ${isBarberMode() ? `<div class="card">
-          <h2>Services</h2>
-          <div class="tag-wrap">${services.length ? services.map(s=>`<span class="pill">${escapeHtml(s)}</span>`).join("") : `<span class="pill">No services listed</span>`}</div>
+          <div class="tl-section-title">Services</div>
+          <div class="tag-wrap">${display.services.length ? display.services.map(s=>`<span class="pill">${escapeHtml(s)}</span>`).join("") : `<span class="pill">No services listed</span>`}</div>
         </div>` : ""}
 
         <div class="card">
-          <h2>Account</h2>
+          <div class="tl-section-title">Account</div>
           <p class="muted">Email: ${escapeHtml(profile.email || currentUser.email || "")}</p>
           <p class="muted">Phone: ${phoneDisplay}</p>
           <div class="tag-wrap">${roles.map(r=>`<span class="pill success">${r}</span>`).join("")}</div>
-          <div class="btn-row"><button class="btn secondary" onclick="safeOpenEditAccount()">Edit Account Info</button></div>
         </div>
 
         <div class="card">
-          <h2>Active Mode</h2>
+          <div class="tl-section-title">Active Mode</div>
           <p class="muted">Switch between barber and client mode. This does not delete your data.</p>
           <div class="btn-row">
             ${roles.includes("barber") ? `<button class="btn ${activeMode()==="barber"?"primary":"secondary"}" onclick="switchMode('barber')">Barber Mode</button>` : ""}
@@ -493,7 +504,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
         </div>
 
         <div class="card">
-          <h2>Session</h2>
+          <div class="tl-section-title">Session</div>
           <div class="btn-row"><button class="btn danger" onclick="logout()">Logout</button></div>
         </div>`;
     }
@@ -1267,50 +1278,15 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     window.confirmDeclineBookingRequest = window.openDeclineRequestConfirm;
     window.declineBookingRequest = window.openDeclineRequestConfirm;
 
-    
 
-
-    window.openProfilePhotoModal = function() {
-      openModal("Profile Photo", `
-        <p class="muted">Upload a clear profile photo. Square photos work best.</p>
-        <label>Profile Photo</label>
-        <input id="profilePhotoInput" type="file" accept="image/*" />
-        <div class="btn-row"><button class="btn primary" type="button" onclick="saveProfilePhoto()">Upload Photo</button></div>
-      `);
-    }
-
-    window.saveProfilePhoto = async function() {
-      const input = document.getElementById("profilePhotoInput");
-      const file = input?.files?.[0];
-      if (!file) return alert("Choose a photo first.");
-
-      try {
-        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-        const path = `profilePhotos/${currentUser.uid}/${Date.now()}-${safeName}`;
-        const storageRef = ref(storage, path);
-        await uploadBytes(storageRef, file);
-        const photoURL = await getDownloadURL(storageRef);
-
-        await setDoc(doc(db, "users", currentUser.uid), { photoURL, updatedAt: serverTimestamp() }, { merge: true });
-
-        if (state.userProfile?.roles?.includes("barber")) {
-          await setDoc(doc(db, "barbers", currentUser.uid), { photoURL, updatedAt: serverTimestamp() }, { merge: true });
-        }
-
-        closeModal();
-        alert("Profile photo updated.");
-      } catch (err) {
-        alert("Photo upload failed: " + err.message);
-      }
-    }
 
 
     window.openProfileMenu = function() {
       openModal("Profile Menu", `
         <div class="list">
           <button class="btn secondary" type="button" onclick="closeModal(); openEditAccount();">Edit Account Info</button>
-          <button class="btn secondary" type="button" onclick="closeModal(); openProfilePhotoModal();">Profile Photo</button>
-          <button class="btn secondary" type="button" onclick="closeModal(); openEditUsername();">Edit Username</button>
+          ${isBarberMode() ? `<button class="btn secondary" type="button" onclick="closeModal(); openEditProfile();">Edit Barber Profile</button>
+          <button class="btn secondary" type="button" onclick="closeModal(); openEditUsername();">Edit Username</button>` : ""}
           <button class="btn danger" type="button" onclick="logout()">Logout</button>
         </div>
       `);
@@ -1423,112 +1399,6 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
 
     window.cancelAppointment = window.openCancelAppointmentConfirm;
     window.cancelAppointmentAndSync = window.openCancelAppointmentConfirm;
-
-
-
-    // ---- Profile Button Hotfix v2 ----
-    window.safeOpenEditAccount = function() {
-      try {
-        if (typeof openEditAccount === "function") return openEditAccount();
-        if (typeof window.openEditAccount === "function") return window.openEditAccount();
-
-        const profile = state.userProfile || {};
-        openModal("Edit Account Info", `
-          <label>Name</label>
-          <input id="accountName" value="${escapeAttr(profile.name || "")}" />
-
-          <label>Phone <span class="muted" style="text-transform:none;letter-spacing:0;">Recommended, optional</span></label>
-          <input id="accountPhone" type="tel" value="${escapeAttr(profile.phone || "")}" placeholder="Phone number" />
-
-          <div class="btn-row"><button class="btn primary" type="button" onclick="safeSaveAccountInfo()">Save Account</button></div>
-        `);
-      } catch (err) {
-        alert("Account editor failed: " + err.message);
-      }
-    }
-
-    window.safeSaveAccountInfo = async function() {
-      try {
-        const name = val("accountName") || state.userProfile?.name || "New User";
-        const phone = val("accountPhone");
-        await setDoc(doc(db, "users", currentUser.uid), { name, phone, updatedAt: serverTimestamp() }, { merge: true });
-
-        if (state.userProfile?.roles?.includes("barber")) {
-          await setDoc(doc(db, "barbers", currentUser.uid), { name, updatedAt: serverTimestamp() }, { merge: true });
-        }
-
-        closeModal();
-      } catch (err) {
-        alert("Account update failed: " + err.message);
-      }
-    }
-
-    window.safeOpenEditProfile = function() {
-      try {
-        if (typeof openEditProfile === "function") return openEditProfile();
-        if (typeof window.openEditProfile === "function") return window.openEditProfile();
-        alert("Edit barber profile is only available in barber mode.");
-      } catch (err) {
-        alert("Profile editor failed: " + err.message);
-      }
-    }
-
-    window.safeOpenProfilePhotoModal = function() {
-      try {
-        openModal("Profile Photo", `
-          <p class="muted">Upload a clear profile photo. Square photos work best.</p>
-          <label>Profile Photo</label>
-          <input id="profilePhotoInput" type="file" accept="image/*" />
-          <div class="btn-row"><button class="btn primary" type="button" onclick="safeSaveProfilePhoto()">Upload Photo</button></div>
-        `);
-      } catch (err) {
-        alert("Profile photo modal failed: " + err.message);
-      }
-    }
-
-    window.safeSaveProfilePhoto = async function() {
-      const input = document.getElementById("profilePhotoInput");
-      const file = input?.files?.[0];
-      if (!file) return alert("Choose a photo first.");
-
-      try {
-        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-        const path = `profilePhotos/${currentUser.uid}/${Date.now()}-${safeName}`;
-        const storageRef = ref(storage, path);
-        await uploadBytes(storageRef, file);
-        const photoURL = await getDownloadURL(storageRef);
-
-        await setDoc(doc(db, "users", currentUser.uid), { photoURL, updatedAt: serverTimestamp() }, { merge: true });
-
-        if (state.userProfile?.roles?.includes("barber")) {
-          await setDoc(doc(db, "barbers", currentUser.uid), { photoURL, updatedAt: serverTimestamp() }, { merge: true });
-        }
-
-        closeModal();
-        alert("Profile photo updated.");
-      } catch (err) {
-        alert("Photo upload failed: " + err.message);
-      }
-    }
-
-    window.safeOpenProfileMenu = function() {
-      try {
-        openModal("Profile Menu", `
-          <div class="list">
-            <button class="btn secondary" type="button" onclick="closeModal(); safeOpenEditAccount();">Edit Account Info</button>
-            <button class="btn secondary" type="button" onclick="closeModal(); safeOpenProfilePhotoModal();">Profile Photo</button>
-            ${isBarberMode() ? `<button class="btn secondary" type="button" onclick="closeModal(); safeOpenEditProfile();">Edit Barber Profile</button>` : ""}
-            <button class="btn danger" type="button" onclick="logout()">Logout</button>
-          </div>
-        `);
-      } catch (err) {
-        alert("Menu failed: " + err.message);
-      }
-    }
-
-    window.openProfilePhotoModal = window.safeOpenProfilePhotoModal;
-    window.saveProfilePhoto = window.safeSaveProfilePhoto;
-    window.openProfileMenu = window.safeOpenProfileMenu;
 
 
   </script>
