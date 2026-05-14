@@ -1,14 +1,11 @@
-# Trimline Business Hours v1
+# Trimline Rollback — Login Working
 
-Core booking/scheduling feature.
+This restores the last stable version after the Business Hours build broke login buttons.
 
-Added:
-- Barber can set weekly business hours from Profile/Settings
-- Days can be open or closed
-- Start/end times use 30-minute increments
-- Client booking form only shows slots inside barber hours
-- Closed days show as closed
-- Already pending/accepted times still show unavailable
-- Final request submission validates business hours again
+Upload:
+- index.html
+- README.md
 
-No Firebase rules changes needed.
+Then commit and let Vercel redeploy.
+
+After login is restored, rebuild Business Hours in a smaller isolated version.
