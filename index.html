@@ -58,6 +58,12 @@
     .username-box{font-weight:900;font-size:18px;letter-spacing:-.03em}
     .search-result{border:1px solid var(--border);background:#0b0b0b;border-radius:16px;padding:14px;margin-top:12px}
 
+  
+    .barber-profile-cover{height:96px;border-radius:18px;background:linear-gradient(135deg,#222,#050505);border:1px solid var(--border);margin-bottom:-34px}
+    .barber-profile-card{padding-top:48px}
+    .profile-handle{font-weight:800;color:#fff}
+    .service-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+    .profile-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
   </style>
 </head>
 <body>
@@ -149,7 +155,7 @@
     let app, auth, db, storage;
     if (isConfigured) { app = initializeApp(firebaseConfig); auth = getAuth(app); db = getFirestore(app); storage = getStorage(app); }
 
-    let currentUser = null, activePage = "dashboard", selectedClientId = null;
+    let currentUser = null, activePage = "dashboard", selectedClientId = null, viewedBarber = null;
     let signupRoles = ["barber"], setupRoles = ["barber"];
     let state = { userProfile:null, barber:null, clients:[], cuts:[], appointments:[], bookingRequests:[] };
     let unsubscribers = [];
@@ -228,7 +234,7 @@
     }
     function updateModeUI() { const mode = state.userProfile?.activeMode || "barber"; $("modePill").textContent = `Mode: ${mode[0].toUpperCase() + mode.slice(1)}`; }
 
-    document.querySelectorAll(".nav-btn").forEach(btn => btn.addEventListener("click", () => { selectedClientId = null; setPage(btn.dataset.page); }));
+    document.querySelectorAll(".nav-btn").forEach(btn => btn.addEventListener("click", () => { selectedClientId = null; if (btn.dataset.page !== "clients") viewedBarber = null; setPage(btn.dataset.page); }));
 
     
     document.addEventListener("click", (event) => {
@@ -282,7 +288,9 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
         </div><div class="card"><h2>Recent Cuts</h2><div class="list">${recentCuts.length ? recentCuts.map(c=>cutRow(c)).join("") : `<div class="empty">No cuts saved yet.</div>`}</div></div>`;
     }
     function renderClients() {
-      if (!isBarberMode()) { 
+      if (!isBarberMode()) {
+        if (viewedBarber) return renderViewedBarberProfile();
+
         const selected = state.userProfile?.selectedBarber || null;
         $("clients").innerHTML = `
           <div class="card">
@@ -299,10 +307,11 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
               <p><strong>${escapeHtml(selected.name || "Barber")}</strong></p>
               <p class="muted">${escapeHtml(selected.shopName || "")}</p>
               <p class="muted">@${escapeHtml(selected.username || "")}</p>
+              <div class="btn-row"><button class="btn secondary" onclick="viewSelectedBarberProfile()">View Profile</button></div>
             ` : `<div class="empty">No barber selected.</div>`}
           </div>
         `;
-        return; 
+        return;
       }
       if (selectedClientId) return renderClientDetail();
       $("clients").innerHTML = `<div class="card"><h2>Client List</h2><div class="list">${state.clients.length ? state.clients.map(c=>`<button class="row" onclick="viewClient('${c.id}')"><span class="row-main"><strong>${escapeHtml(c.name)}</strong><span class="muted">${escapeHtml(c.phone||"No phone")}</span></span><span class="pill">${cutsForClient(c.id).length} cuts</span></button>`).join("") : `<div class="empty">No clients yet.</div>`}</div><div class="btn-row"><button class="btn primary" onclick="openAddClient()">Add Client</button></div></div>`;
@@ -894,6 +903,112 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
       setTimeout(() => document.getElementById("barberSearchInput")?.focus(), 100);
     }
 
+
+    function barberServicesArray(barber) {
+      return (barber?.services || "")
+        .split(",")
+        .map(s => s.trim())
+        .filter(Boolean);
+    }
+
+    function renderBarberProfileMarkup(barber) {
+      const services = barberServicesArray(barber);
+      const isSelected = state.userProfile?.selectedBarberId === barber.id;
+
+      return `
+        <button class="btn secondary" onclick="backToFindBarber()">← Back to Search</button>
+
+        <div class="barber-profile-cover" style="margin-top:12px;"></div>
+        <div class="card barber-profile-card">
+          <div class="profile-hero">
+            <div class="avatar">${initials(barber.name || "BC")}</div>
+            <div>
+              <h2>${escapeHtml(barber.name || "Barber")}</h2>
+              <p class="profile-handle">@${escapeHtml(barber.username || barber.usernameLower || "")}</p>
+              <p class="muted">${escapeHtml(barber.shopName || "Independent Barber")}</p>
+            </div>
+          </div>
+
+          <br>
+          <p class="muted">${escapeHtml(barber.location || "Location not set")}</p>
+          <p class="muted" style="margin-top:8px;">${escapeHtml(barber.bio || "No bio added yet.")}</p>
+
+          <div class="service-list">
+            ${services.length ? services.map(s => `<span class="pill">${escapeHtml(s)}</span>`).join("") : `<span class="pill">Services not listed</span>`}
+          </div>
+
+          <div class="profile-actions">
+            <button class="btn ${isSelected ? "secondary" : "primary"}" onclick="selectBarberFromProfile()">${isSelected ? "Current Barber" : "Add Barber"}</button>
+            <button class="btn secondary" onclick="bookFromViewedProfile()">Book</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Portfolio</h2>
+          <div class="empty">Portfolio photos are coming next. For now, this profile is ready for booking and barber selection.</div>
+        </div>
+      `;
+    }
+
+    function renderViewedBarberProfile() {
+      $("clients").innerHTML = renderBarberProfileMarkup(viewedBarber);
+    }
+
+    window.backToFindBarber = function() {
+      viewedBarber = null;
+      renderClients();
+    }
+
+    window.viewSelectedBarberProfile = async function() {
+      const selected = state.userProfile?.selectedBarber;
+      if (!selected?.id) return alert("No barber selected.");
+
+      try {
+        const snap = await getDoc(doc(db, "barbers", selected.id));
+        if (!snap.exists()) return alert("Barber profile not found.");
+        viewedBarber = { id: snap.id, ...snap.data() };
+        renderClients();
+      } catch (err) {
+        alert("Could not open barber profile: " + err.message);
+      }
+    }
+
+    window.selectBarberFromProfile = async function() {
+      if (!viewedBarber?.id) return alert("No barber profile open.");
+
+      await setDoc(doc(db, "users", currentUser.uid), {
+        selectedBarberId: viewedBarber.id,
+        selectedBarber: {
+          id: viewedBarber.id,
+          username: viewedBarber.username || viewedBarber.usernameLower || "",
+          name: viewedBarber.name || "Barber",
+          shopName: viewedBarber.shopName || ""
+        },
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      alert(`Added @${viewedBarber.username || viewedBarber.usernameLower || "barber"} as your barber.`);
+      setPage("dashboard");
+    }
+
+    window.bookFromViewedProfile = async function() {
+      if (!viewedBarber?.id) return alert("No barber profile open.");
+
+      await setDoc(doc(db, "users", currentUser.uid), {
+        selectedBarberId: viewedBarber.id,
+        selectedBarber: {
+          id: viewedBarber.id,
+          username: viewedBarber.username || viewedBarber.usernameLower || "",
+          name: viewedBarber.name || "Barber",
+          shopName: viewedBarber.shopName || ""
+        },
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      setTimeout(() => openRequestBooking(), 200);
+    }
+
+
     window.searchBarberUsername = async function() {
       const input = document.getElementById("barberSearchInput");
       const results = document.getElementById("barberSearchResults");
@@ -923,7 +1038,8 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
             <p class="muted">${escapeHtml(barber.shopName || "")}</p>
             <p class="muted">@${escapeHtml(barber.username || username)}</p>
             <div class="btn-row">
-              <button class="btn primary" onclick="selectBarber('${docSnap.id}', '${escapeAttr(barber.username || username)}', '${escapeAttr(barber.name || "Barber")}', '${escapeAttr(barber.shopName || "")}')">Select This Barber</button>
+              <button class="btn primary" onclick="openBarberProfileFromSearch('${docSnap.id}')">View Profile</button>
+              <button class="btn secondary" onclick="selectBarber('${docSnap.id}', '${escapeAttr(barber.username || username)}', '${escapeAttr(barber.name || "Barber")}', '${escapeAttr(barber.shopName || "")}')">Add</button>
             </div>
           </div>
         `;
@@ -931,6 +1047,19 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
         results.innerHTML = `<p class="error">Search failed: ${escapeHtml(err.message)}</p>`;
       }
     }
+
+
+    window.openBarberProfileFromSearch = async function(barberId) {
+      try {
+        const snap = await getDoc(doc(db, "barbers", barberId));
+        if (!snap.exists()) return alert("Barber profile not found.");
+        viewedBarber = { id: snap.id, ...snap.data() };
+        renderClients();
+      } catch (err) {
+        alert("Could not open profile: " + err.message);
+      }
+    }
+
 
     window.selectBarber = async function(barberId, username, name, shopName) {
       try {
