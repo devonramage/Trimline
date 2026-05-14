@@ -88,7 +88,7 @@
     .profile-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 0 10px}
   </style>
 <meta name="trimline-version" content="TRIMLINE_SAFE_NAV_V3">
-<meta name="trimline-version" content="TRIMLINE_PROFILE_PICTURES_V1">
+<meta name="trimline-version" content="TRIMLINE_PROFILE_PICTURES_V2">
 </head>
 <body>
   <div id="loginScreen" class="auth-screen">
@@ -437,7 +437,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
               <div class="eyebrow">${isBarberMode() ? "Barber Profile" : "Client Profile"}</div>
               <h2 style="margin:0;">Profile</h2>
             </div>
-            <button class="btn secondary" type="button" onclick="openProfileMenu()" style="width:auto;padding:10px 14px;">Menu</button>
+            <button class="btn secondary" type="button" onclick="safeOpenProfileMenu()" style="width:auto;padding:10px 14px;">Menu</button>
           </div>
 
           <div class="ig-profile-main">
@@ -465,8 +465,8 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           </div>
 
           <div class="ig-actions">
-            <button class="btn primary" type="button" onclick="${isBarberMode() ? "openEditProfile()" : "openEditAccount()"}">${isBarberMode() ? "Edit Barber Profile" : "Edit Profile"}</button>
-            <button class="btn secondary" type="button" onclick="openProfilePhotoModal()">Profile Photo</button>
+            <button class="btn primary" type="button" onclick="${isBarberMode() ? "safeOpenEditProfile()" : "safeOpenEditAccount()"}">${isBarberMode() ? "Edit Barber Profile" : "Edit Profile"}</button>
+            <button class="btn secondary" type="button" onclick="safeOpenProfilePhotoModal()">Profile Photo</button>
           </div>
         </div>
 
@@ -480,7 +480,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           <p class="muted">Email: ${escapeHtml(profile.email || currentUser.email || "")}</p>
           <p class="muted">Phone: ${phoneDisplay}</p>
           <div class="tag-wrap">${roles.map(r=>`<span class="pill success">${r}</span>`).join("")}</div>
-          <div class="btn-row"><button class="btn secondary" onclick="openEditAccount()">Edit Account Info</button></div>
+          <div class="btn-row"><button class="btn secondary" onclick="safeOpenEditAccount()">Edit Account Info</button></div>
         </div>
 
         <div class="card">
@@ -1423,6 +1423,112 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
 
     window.cancelAppointment = window.openCancelAppointmentConfirm;
     window.cancelAppointmentAndSync = window.openCancelAppointmentConfirm;
+
+
+
+    // ---- Profile Button Hotfix v2 ----
+    window.safeOpenEditAccount = function() {
+      try {
+        if (typeof openEditAccount === "function") return openEditAccount();
+        if (typeof window.openEditAccount === "function") return window.openEditAccount();
+
+        const profile = state.userProfile || {};
+        openModal("Edit Account Info", `
+          <label>Name</label>
+          <input id="accountName" value="${escapeAttr(profile.name || "")}" />
+
+          <label>Phone <span class="muted" style="text-transform:none;letter-spacing:0;">Recommended, optional</span></label>
+          <input id="accountPhone" type="tel" value="${escapeAttr(profile.phone || "")}" placeholder="Phone number" />
+
+          <div class="btn-row"><button class="btn primary" type="button" onclick="safeSaveAccountInfo()">Save Account</button></div>
+        `);
+      } catch (err) {
+        alert("Account editor failed: " + err.message);
+      }
+    }
+
+    window.safeSaveAccountInfo = async function() {
+      try {
+        const name = val("accountName") || state.userProfile?.name || "New User";
+        const phone = val("accountPhone");
+        await setDoc(doc(db, "users", currentUser.uid), { name, phone, updatedAt: serverTimestamp() }, { merge: true });
+
+        if (state.userProfile?.roles?.includes("barber")) {
+          await setDoc(doc(db, "barbers", currentUser.uid), { name, updatedAt: serverTimestamp() }, { merge: true });
+        }
+
+        closeModal();
+      } catch (err) {
+        alert("Account update failed: " + err.message);
+      }
+    }
+
+    window.safeOpenEditProfile = function() {
+      try {
+        if (typeof openEditProfile === "function") return openEditProfile();
+        if (typeof window.openEditProfile === "function") return window.openEditProfile();
+        alert("Edit barber profile is only available in barber mode.");
+      } catch (err) {
+        alert("Profile editor failed: " + err.message);
+      }
+    }
+
+    window.safeOpenProfilePhotoModal = function() {
+      try {
+        openModal("Profile Photo", `
+          <p class="muted">Upload a clear profile photo. Square photos work best.</p>
+          <label>Profile Photo</label>
+          <input id="profilePhotoInput" type="file" accept="image/*" />
+          <div class="btn-row"><button class="btn primary" type="button" onclick="safeSaveProfilePhoto()">Upload Photo</button></div>
+        `);
+      } catch (err) {
+        alert("Profile photo modal failed: " + err.message);
+      }
+    }
+
+    window.safeSaveProfilePhoto = async function() {
+      const input = document.getElementById("profilePhotoInput");
+      const file = input?.files?.[0];
+      if (!file) return alert("Choose a photo first.");
+
+      try {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const path = `profilePhotos/${currentUser.uid}/${Date.now()}-${safeName}`;
+        const storageRef = ref(storage, path);
+        await uploadBytes(storageRef, file);
+        const photoURL = await getDownloadURL(storageRef);
+
+        await setDoc(doc(db, "users", currentUser.uid), { photoURL, updatedAt: serverTimestamp() }, { merge: true });
+
+        if (state.userProfile?.roles?.includes("barber")) {
+          await setDoc(doc(db, "barbers", currentUser.uid), { photoURL, updatedAt: serverTimestamp() }, { merge: true });
+        }
+
+        closeModal();
+        alert("Profile photo updated.");
+      } catch (err) {
+        alert("Photo upload failed: " + err.message);
+      }
+    }
+
+    window.safeOpenProfileMenu = function() {
+      try {
+        openModal("Profile Menu", `
+          <div class="list">
+            <button class="btn secondary" type="button" onclick="closeModal(); safeOpenEditAccount();">Edit Account Info</button>
+            <button class="btn secondary" type="button" onclick="closeModal(); safeOpenProfilePhotoModal();">Profile Photo</button>
+            ${isBarberMode() ? `<button class="btn secondary" type="button" onclick="closeModal(); safeOpenEditProfile();">Edit Barber Profile</button>` : ""}
+            <button class="btn danger" type="button" onclick="logout()">Logout</button>
+          </div>
+        `);
+      } catch (err) {
+        alert("Menu failed: " + err.message);
+      }
+    }
+
+    window.openProfilePhotoModal = window.safeOpenProfilePhotoModal;
+    window.saveProfilePhoto = window.safeSaveProfilePhoto;
+    window.openProfileMenu = window.safeOpenProfileMenu;
 
 
   </script>
