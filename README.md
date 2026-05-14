@@ -1,10 +1,9 @@
-# Barber Connect Cancel Appointments v1
+# Barber Connect Cancel Appointments v2
 
-Added:
-- Barber-side schedule appointments now have a Cancel button
-- Cancel is a two-step process:
-  1. Tap Cancel
-  2. Confirm "Are you sure?"
-- Confirmed cancellations delete the appointment and remove it from the schedule page
+Fix:
+- Cancel now updates the appointment status to "cancelled"
+- Cancelled appointments are hidden from the barber schedule
+- The appointment disappears immediately after confirming cancellation
+- Safer than hard-deleting because the database still keeps a cancellation record
 
-No Firebase rules change needed if barbers can already delete appointments.
+No Firebase rule changes needed if appointment updates already work.

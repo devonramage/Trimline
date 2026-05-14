@@ -225,7 +225,7 @@
         unsubscribers.push(onSnapshot(doc(db, "barbers", currentUser.uid), snap => { state.barber = snap.exists() ? { id:snap.id, ...snap.data() } : null; render(); }, err => showRuntimeError("Barber sync failed: " + err.message)));
         unsubscribers.push(onSnapshot(query(collection(db, "clients"), where("barberId", "==", currentUser.uid)), snap => { state.clients = snap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>String(b.createdAt?.seconds||0).localeCompare(String(a.createdAt?.seconds||0))); render(); }, err => showRuntimeError("Clients sync failed: " + err.message)));
         unsubscribers.push(onSnapshot(query(collection(db, "cuts"), where("barberId", "==", currentUser.uid)), snap => { state.cuts = snap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))); render(); }, err => showRuntimeError("Cuts sync failed: " + err.message)));
-        unsubscribers.push(onSnapshot(query(collection(db, "appointments"), where("barberId", "==", currentUser.uid)), snap => { state.appointments = snap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>`${a.date||""} ${a.time||""}`.localeCompare(`${b.date||""} ${b.time||""}`)); $("syncStatus").textContent = "Live Cloud Sync"; render(); }, err => showRuntimeError("Appointments sync failed: " + err.message)));
+        unsubscribers.push(onSnapshot(query(collection(db, "appointments"), where("barberId", "==", currentUser.uid)), snap => { state.appointments = snap.docs.map(d => ({ id:d.id, ...d.data() })).filter(a => (a.status || "scheduled") !== "cancelled").sort((a,b)=>`${a.date||""} ${a.time||""}`.localeCompare(`${b.date||""} ${b.time||""}`)); $("syncStatus").textContent = "Live Cloud Sync"; render(); }, err => showRuntimeError("Appointments sync failed: " + err.message)));
         unsubscribers.push(onSnapshot(query(collection(db, "bookingRequests"), where("barberId", "==", currentUser.uid)), snap => {
           state.bookingRequests = snap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>`${a.date||""} ${a.time||""}`.localeCompare(`${b.date||""} ${b.time||""}`));
           render();
@@ -804,7 +804,13 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
       if (!confirm(`Are you sure you want to cancel this appointment?\n\n${label}`)) return;
 
       try {
-        await deleteDoc(doc(db, "appointments", appointmentId));
+        await updateDoc(doc(db, "appointments", appointmentId), {
+          status: "cancelled",
+          cancelledAt: serverTimestamp()
+        });
+
+        state.appointments = (state.appointments || []).filter(a => a.id !== appointmentId);
+        render();
         alert("Appointment cancelled.");
       } catch (err) {
         alert("Cancel failed: " + err.message);
