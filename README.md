@@ -1,17 +1,19 @@
-# Barber Connect Cancel Confirm v1
+# Barber Connect Cancel Confirm v2
 
 Fix:
-- Every appointment Cancel button now opens a custom confirmation modal first
-- Every booking request Decline button now opens a custom confirmation modal first
-- Cancel only happens after tapping "Yes, Cancel"
-- Decline only happens after tapping "Yes, Decline"
-- Cancelling still attempts to sync the linked client booking request to cancelled
+- Patched the real instant-cancel path.
+- Any old markAppointment(id, "cancelled") call now opens the confirm modal instead.
+- Cancel button should no longer instantly remove the appointment.
+- "Yes, Cancel" marks the appointment cancelled and tries to sync the linked booking request.
 
-Test:
-1. Barber accepts a client request
-2. Barber goes to Schedule
-3. Tap Cancel
-4. You should see a modal with Keep Appointment / Yes, Cancel
+Important:
+- Existing accepted appointments created before the requestId/appointmentId fix may not always sync to client status.
+- New accepted appointments after this version should sync better.
+
+Test with a fresh request:
+1. Client sends new booking request
+2. Barber accepts it
+3. Barber cancels it from Schedule
+4. Confirm modal should appear
 5. Tap Yes, Cancel
-6. Appointment disappears
-7. Client request should show cancelled if linked
+6. Client status should update to cancelled after refresh

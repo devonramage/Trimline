@@ -489,7 +489,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
       </div>`;
     }
 
-    function appointmentRow(a, actions=false) { const c = clientById(a.clientId); const statusClass = a.status==="completed" ? "success" : a.status==="cancelled" ? "danger" : "warning"; return `<div class="row"><span class="row-main"><strong>${escapeHtml(c?.name || "Unknown Client")}</strong><span class="muted">${formatDate(a.date)} at ${escapeHtml(formatTime(a.time))} · ${escapeHtml(a.service||"Service")}</span>${a.notes ? `<span class="small">${escapeHtml(a.notes)}</span>` : ""}${actions ? `<span class="btn-row"><button class="btn secondary" onclick="markAppointment('${a.id}','completed')">Complete</button><button class="btn danger" onclick="markAppointment('${a.id}','cancelled')">Cancel</button></span>` : ""}</span><span class="pill ${statusClass}">${escapeHtml(a.status||"scheduled")}</span></div>`; }
+    function appointmentRow(a, actions=false) { const c = clientById(a.clientId); const statusClass = a.status==="completed" ? "success" : a.status==="cancelled" ? "danger" : "warning"; return `<div class="row"><span class="row-main"><strong>${escapeHtml(c?.name || "Unknown Client")}</strong><span class="muted">${formatDate(a.date)} at ${escapeHtml(formatTime(a.time))} · ${escapeHtml(a.service||"Service")}</span>${a.notes ? `<span class="small">${escapeHtml(a.notes)}</span>` : ""}${actions ? `<span class="btn-row"><button class="btn secondary" onclick="markAppointment('${a.id}','completed')">Complete</button><button class="btn danger" onclick="openCancelAppointmentConfirm(\'${a.id}\')">Cancel</button></span>` : ""}</span><span class="pill ${statusClass}">${escapeHtml(a.status||"scheduled")}</span></div>`; }
     function cutRow(c) { const client = clientById(c.clientId); return `<button class="row" onclick="viewClient('${c.clientId}'); setPage('clients')"><span class="row-main"><strong>${escapeHtml(client?.name || "Unknown Client")}</strong><span class="muted">${formatDate(c.date)} · ${escapeHtml(c.style||"Cut")}</span></span><span class="pill">${c.photos?.length||0} photos</span></button>`; }
     function cutDetail(c) { return `<div class="card" style="background:#0b0b0b;"><h3>${escapeHtml(c.style||"Haircut")}</h3><p class="muted">${formatDate(c.date)}</p><p class="muted">${escapeHtml(c.notes||"No cut notes.")}</p><div class="tag-wrap">${(c.tags||"").split(",").filter(Boolean).map(t=>`<span class="pill">${escapeHtml(t.trim())}</span>`).join("")}</div><div class="photo-grid">${(c.photos||[]).map(src=>`<div class="photo-box"><img src="${src}" alt="Cut photo"></div>`).join("") || `<div class="photo-box">No photos</div>`}</div><div class="btn-row"><button class="btn danger" onclick="deleteCut('${c.id}')">Delete Cut</button></div></div>`; }
 
@@ -781,6 +781,8 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           status: "scheduled",
           source: "bookingRequest",
           requestId: requestId,
+          clientUserId: request.clientUserId || "",
+          clientName: request.clientName || "",
           createdAt: serverTimestamp()
         });
 
@@ -841,26 +843,17 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     window.openAddAppointment = function(clientId="") { const selected = clientId || selectedClientId || ""; openModal("Add Appointment", `<label>Client</label><select id="apptClient">${state.clients.map(c=>`<option value="${c.id}" ${c.id===selected?"selected":""}>${escapeHtml(c.name)}</option>`).join("")}</select><label>Date</label><input id="apptDate" type="date" value="${getToday()}" /><label>Time</label><select id="apptTime">${timeSlotOptions()}</select><label>Service</label><input id="apptService" placeholder="Fade, taper, beard trim, etc." /><label>Notes</label><textarea id="apptNotes" placeholder="Appointment notes"></textarea><div class="btn-row"><button class="btn primary" onclick="addAppointment()">Save Appointment</button></div>`); }
     window.addAppointment = async function() { const clientId=val("apptClient"); if(!clientId) return alert("Pick a client."); try { await addDoc(collection(db,"appointments"), { barberId:currentUser.uid, clientId, date:val("apptDate")||getToday(), time:val("apptTime")||"09:00", service:val("apptService"), notes:val("apptNotes"), status:"scheduled", createdAt:serverTimestamp() }); closeModal(); } catch(err) { alert("Appointment save failed: " + err.message); } }
 
-    window.markAppointment = async function(id,status) { await updateDoc(doc(db,"appointments",id), {status}); }
-    window.openEditProfile = function() { const b=state.barber||{}; openModal("Edit Barber Profile", `<label>Name</label><input id="barberName" value="${escapeAttr(b.name||"")}" /><label>Shop Name</label><input id="shopName" value="${escapeAttr(b.shopName||"")}" /><label>Location</label><input id="barberLocation" value="${escapeAttr(b.location||"")}" /><label>Bio</label><textarea id="barberBio">${escapeHtml(b.bio||"")}</textarea><label>Services</label><input id="barberServices" value="${escapeAttr(b.services||"")}" /><div class="btn-row"><button class="btn primary" onclick="saveProfile()">Save Profile</button></div>`); }
-    window.saveProfile = async function() { await setDoc(doc(db,"barbers",currentUser.uid), { uid:currentUser.uid, email:currentUser.email, name:val("barberName"), shopName:val("shopName"), location:val("barberLocation"), bio:val("barberBio"), services:val("barberServices"), updatedAt:serverTimestamp() }, {merge:true}); await setDoc(doc(db,"users",currentUser.uid), { name:val("barberName") }, {merge:true}); closeModal(); }
-    window.deleteClient = async function(id) { if(!confirm("Delete this client? Linked cuts and appointments will stay for now.")) return; await deleteDoc(doc(db,"clients",id)); selectedClientId=null; }
-    window.deleteCut = async function(id) { if(!confirm("Delete this cut?")) return; await deleteDoc(doc(db,"cuts",id)); }
-    window.logout = async function() { await signOut(auth); }
+    window.markAppointment = async function(id, status) {
+      if (status === "cancelled") {
+        openCancelAppointmentConfirm(id);
+        return;
+      }
 
-
-    window.openEditUsername = function() {
-      const b = state.barber || {};
-      openModal("Edit Barber Username", `
-        <label>Username</label>
-        <input id="barberUsernameInput" value="${escapeAttr(b.username || "")}" placeholder="devdoescuts" />
-        <p class="muted" style="margin-top:10px;">Use letters, numbers, underscores, or dots. No spaces. Clients will search this like @devdoescuts.</p>
-        <div id="usernameStatus" class="muted" style="margin-top:10px;"></div>
-        <div class="btn-row">
-          <button class="btn secondary" onclick="checkUsernameAvailability()">Check</button>
-          <button class="btn primary" onclick="saveUsername()">Save Username</button>
-        </div>
-      `);
+      try {
+        await updateDoc(doc(db, "appointments", id), { status });
+      } catch (err) {
+        alert("Appointment update failed: " + err.message);
+      }
     }
 
 
@@ -1180,99 +1173,6 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     }
 
 
-window.openCancelAppointmentConfirm = function(appointmentId) {
-      const appt = (state.appointments || []).find(a => a.id === appointmentId);
-      if (!appt) return alert("Appointment not found.");
-
-      const client = clientById(appt.clientId);
-      const clientName = appt.clientName || client?.name || "Client";
-      const label = `${appt.service || "Appointment"} with ${clientName} on ${formatDate(appt.date)} at ${formatTime(appt.time)}`;
-
-      openModal("Cancel Appointment?", `
-        <p class="muted">Are you sure you want to cancel this appointment?</p>
-        <br>
-        <p><strong>${escapeHtml(label)}</strong></p>
-        <p class="muted" style="margin-top:10px;">This will remove it from your schedule and update the client booking status when linked.</p>
-        <div class="btn-row">
-          <button class="btn secondary" type="button" onclick="closeModal()">Keep Appointment</button>
-          <button class="btn danger" type="button" onclick="performCancelAppointment('${appointmentId}')">Yes, Cancel</button>
-        </div>
-      `);
-    }
-
-    window.performCancelAppointment = async function(appointmentId) {
-      const appt = (state.appointments || []).find(a => a.id === appointmentId);
-      if (!appt) {
-        closeModal();
-        return alert("Appointment not found.");
-      }
-
-      try {
-        await updateDoc(doc(db, "appointments", appointmentId), {
-          status: "cancelled",
-          cancelledAt: serverTimestamp(),
-          cancelledBy: "barber"
-        });
-
-        let requestIdToUpdate = appt.requestId || "";
-
-        if (!requestIdToUpdate) {
-          const byAppointmentSnap = await getDocs(query(
-            collection(db, "bookingRequests"),
-            where("appointmentId", "==", appointmentId),
-            limit(1)
-          ));
-
-          if (!byAppointmentSnap.empty) {
-            requestIdToUpdate = byAppointmentSnap.docs[0].id;
-          }
-        }
-
-        if (!requestIdToUpdate) {
-          const fallbackSnap = await getDocs(query(
-            collection(db, "bookingRequests"),
-            where("barberId", "==", currentUser.uid),
-            where("date", "==", appt.date),
-            where("time", "==", appt.time)
-          ));
-
-          const match = fallbackSnap.docs.find(d => {
-            const r = d.data();
-            const activeStatus = ["accepted", "pending"].includes(r.status || "pending");
-            const sameService = !appt.service || !r.service || r.service === appt.service;
-            const sameClientUser = appt.clientUserId && r.clientUserId === appt.clientUserId;
-            const sameClientName = appt.clientName && r.clientName === appt.clientName;
-            const sameClientByProfile = clientById(appt.clientId)?.phone && r.phone === clientById(appt.clientId)?.phone;
-            return activeStatus && sameService && (sameClientUser || sameClientName || sameClientByProfile);
-          });
-
-          if (match) requestIdToUpdate = match.id;
-        }
-
-        if (requestIdToUpdate) {
-          await updateDoc(doc(db, "bookingRequests", requestIdToUpdate), {
-            status: "cancelled",
-            cancelledAt: serverTimestamp(),
-            cancelledBy: "barber",
-            appointmentId
-          });
-        }
-
-        state.appointments = (state.appointments || []).filter(a => a.id !== appointmentId);
-        state.bookingRequests = (state.bookingRequests || []).map(r => {
-          if (r.id === requestIdToUpdate) return { ...r, status: "cancelled" };
-          return r;
-        });
-
-        closeModal();
-        render();
-
-        alert(requestIdToUpdate ? "Appointment cancelled. Client status updated." : "Appointment cancelled. No linked client request was found to update.");
-      } catch (err) {
-        alert("Cancel failed: " + err.message);
-      }
-    }
-
     window.cancelAppointmentAndSync = window.openCancelAppointmentConfirm;
     window.cancelAppointment = window.openCancelAppointmentConfirm;
 
@@ -1327,6 +1227,106 @@ window.openCancelAppointmentConfirm = function(appointmentId) {
     function escapeHtml(str="") { return String(str).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
     function escapeAttr(str="") { return escapeHtml(str).replaceAll("\n"," "); }
     function cleanFirebaseError(msg) { return msg.replace("Firebase: ","").replace(/\s*\(auth\/.+?\)\.?/,""); }
+
+    window.openCancelAppointmentConfirm = function(appointmentId) {
+      const appt = (state.appointments || []).find(a => a.id === appointmentId);
+      if (!appt) return alert("Appointment not found.");
+
+      const client = clientById(appt.clientId);
+      const clientName = appt.clientName || client?.name || "Client";
+      const label = `${appt.service || "Appointment"} with ${clientName} on ${formatDate(appt.date)} at ${formatTime(appt.time)}`;
+
+      openModal("Cancel Appointment?", `
+        <p class="muted">Are you sure you want to cancel this appointment?</p>
+        <br>
+        <p><strong>${escapeHtml(label)}</strong></p>
+        <p class="muted" style="margin-top:10px;">This will remove it from your schedule and update the client booking status if this came from a request.</p>
+        <div class="btn-row">
+          <button class="btn secondary" type="button" onclick="closeModal()">Keep Appointment</button>
+          <button class="btn danger" type="button" onclick="performCancelAppointment('${appointmentId}')">Yes, Cancel</button>
+        </div>
+      `);
+    }
+
+    window.performCancelAppointment = async function(appointmentId) {
+      const appt = (state.appointments || []).find(a => a.id === appointmentId);
+      if (!appt) {
+        closeModal();
+        return alert("Appointment not found.");
+      }
+
+      try {
+        await updateDoc(doc(db, "appointments", appointmentId), {
+          status: "cancelled",
+          cancelledAt: serverTimestamp(),
+          cancelledBy: "barber"
+        });
+
+        let requestIdToUpdate = appt.requestId || "";
+
+        if (!requestIdToUpdate) {
+          const byAppointmentSnap = await getDocs(query(
+            collection(db, "bookingRequests"),
+            where("appointmentId", "==", appointmentId),
+            limit(1)
+          ));
+
+          if (!byAppointmentSnap.empty) {
+            requestIdToUpdate = byAppointmentSnap.docs[0].id;
+          }
+        }
+
+        if (!requestIdToUpdate) {
+          const fallbackSnap = await getDocs(query(
+            collection(db, "bookingRequests"),
+            where("barberId", "==", currentUser.uid),
+            where("date", "==", appt.date),
+            where("time", "==", appt.time)
+          ));
+
+          const client = clientById(appt.clientId);
+
+          const match = fallbackSnap.docs.find(d => {
+            const r = d.data();
+            const activeStatus = ["accepted", "pending"].includes(r.status || "pending");
+            const sameService = !appt.service || !r.service || r.service === appt.service;
+            const sameClientUser = appt.clientUserId && r.clientUserId === appt.clientUserId;
+            const sameClientName = (appt.clientName && r.clientName === appt.clientName) || (client?.name && r.clientName === client.name);
+            const samePhone = client?.phone && r.phone === client.phone;
+            return activeStatus && sameService && (sameClientUser || sameClientName || samePhone);
+          });
+
+          if (match) requestIdToUpdate = match.id;
+        }
+
+        if (requestIdToUpdate) {
+          await updateDoc(doc(db, "bookingRequests", requestIdToUpdate), {
+            status: "cancelled",
+            cancelledAt: serverTimestamp(),
+            cancelledBy: "barber",
+            appointmentId
+          });
+        }
+
+        state.appointments = (state.appointments || []).filter(a => a.id !== appointmentId);
+        state.bookingRequests = (state.bookingRequests || []).map(r => {
+          if (r.id === requestIdToUpdate) return { ...r, status: "cancelled" };
+          return r;
+        });
+
+        closeModal();
+        render();
+
+        alert(requestIdToUpdate ? "Appointment cancelled. Client status updated." : "Appointment cancelled. No linked request was found to update.");
+      } catch (err) {
+        alert("Cancel failed: " + err.message);
+      }
+    }
+
+    window.cancelAppointment = window.openCancelAppointmentConfirm;
+    window.cancelAppointmentAndSync = window.openCancelAppointmentConfirm;
+
+
   </script>
 </body>
 </html>
