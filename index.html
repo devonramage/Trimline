@@ -290,6 +290,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
       const today = getToday(); const todays = state.appointments.filter(a => a.date === today && a.status !== "cancelled"); const recentCuts = [...state.cuts].slice(0,3);
       $("dashboard").innerHTML = `<div class="grid grid-2"><div class="card stat"><span class="muted">Clients</span><strong>${state.clients.length}</strong></div><div class="card stat"><span class="muted">Saved Cuts</span><strong>${state.cuts.length}</strong></div></div><div class="card"><h2>Today</h2><div class="list">${todays.length ? todays.map(a=>appointmentRow(a)).join("") : `<div class="empty">No appointments today.</div>`}</div><div class="btn-row"><button class="btn primary" onclick="openAddAppointment()">Add Appointment</button></div></div><div class="card">
           <h2>Booking Requests</h2>
+          <div class="btn-row"><button class="btn secondary" type="button" onclick="clearOldBookingRequests()">Clear Old Requests</button></div>
           <div class="list">${pendingBookingRequests().length ? pendingBookingRequests().map(r=>bookingRequestRow(r)).join("") : `<div class="empty">No pending booking requests.</div>`}</div>
         </div><div class="card"><h2>Recent Cuts</h2><div class="list">${recentCuts.length ? recentCuts.map(c=>cutRow(c)).join("") : `<div class="empty">No cuts saved yet.</div>`}</div></div>`;
     }
@@ -338,12 +339,13 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           </div>
           <div class="card">
             <h2>Request Status</h2>
+            <div class="btn-row"><button class="btn secondary" type="button" onclick="clearOldBookingRequests()">Clear Old Requests</button></div>
             <div class="list">${(state.bookingRequests || []).length ? state.bookingRequests.map(r=>clientBookingRequestRow(r)).join("") : `<div class="empty">No booking requests yet.</div>`}</div>
           </div>
         `; 
         return; 
       }
-      $("schedule").innerHTML = `<div class="card"><h2>Booking Requests</h2><div class="list">${pendingBookingRequests().length ? pendingBookingRequests().map(r=>bookingRequestRow(r)).join("") : `<div class="empty">No pending requests.</div>`}</div></div><div class="card"><h2>Schedule</h2><div class="list">${state.appointments.length ? state.appointments.map(a=>appointmentRow(a,true)).join("") : `<div class="empty">No appointments scheduled.</div>`}</div><div class="btn-row"><button class="btn primary" onclick="openAddAppointment()">Add Appointment</button></div></div>`;
+      $("schedule").innerHTML = `<div class="card"><h2>Booking Requests</h2><div class="btn-row"><button class="btn secondary" type="button" onclick="clearOldBookingRequests()">Clear Old Requests</button></div><div class="list">${pendingBookingRequests().length ? pendingBookingRequests().map(r=>bookingRequestRow(r)).join("") : `<div class="empty">No pending requests.</div>`}</div></div><div class="card"><h2>Schedule</h2><div class="list">${state.appointments.length ? state.appointments.map(a=>appointmentRow(a,true)).join("") : `<div class="empty">No appointments scheduled.</div>`}</div><div class="btn-row"><button class="btn primary" onclick="openAddAppointment()">Add Appointment</button></div></div>`;
     }
     function renderProfile() {
       const profile = state.userProfile || {};
@@ -478,6 +480,9 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           <span class="btn-row">
             <button class="btn secondary" onclick="acceptBookingRequest('${r.id}')">Accept</button>
             <button class="btn danger" onclick="declineBookingRequest('${r.id}')">Decline</button>
+          </span>
+          <span class="btn-row">
+            <button class="btn danger" type="button" onclick="deleteBookingRequest('${r.id}')">Delete Request</button>
           </span>
         </span>
         <span class="pill warning">pending</span>
@@ -626,6 +631,9 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           <span class="muted">${formatDate(r.date)} at ${escapeHtml(formatTime(r.time))}</span>
           <span class="small">@${escapeHtml(r.barberUsername || "")} · ${escapeHtml(r.barberName || "Barber")}</span>
           ${r.notes ? `<span class="small">${escapeHtml(r.notes)}</span>` : ""}
+          <span class="btn-row">
+            <button class="btn danger" type="button" onclick="deleteBookingRequest('${r.id}')">Delete</button>
+          </span>
         </span>
         ${statusPill(r.status)}
       </div>`;
@@ -784,6 +792,32 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
         alert("Accept failed: " + err.message);
       }
     }
+
+
+    window.clearOldBookingRequests = async function() {
+      const oldRequests = (state.bookingRequests || []).filter(r => (r.status || "pending") !== "pending");
+      if (!oldRequests.length) return alert("No old requests to clear.");
+      if (!confirm(`Delete ${oldRequests.length} old request(s)?`)) return;
+
+      try {
+        for (const r of oldRequests) {
+          await deleteDoc(doc(db, "bookingRequests", r.id));
+        }
+      } catch (err) {
+        alert("Clear failed: " + err.message);
+      }
+    }
+
+    window.deleteBookingRequest = async function(requestId) {
+      if (!confirm("Delete this booking request?")) return;
+
+      try {
+        await deleteDoc(doc(db, "bookingRequests", requestId));
+      } catch (err) {
+        alert("Delete failed: " + err.message);
+      }
+    }
+
 
     window.declineBookingRequest = async function(requestId) {
       if (!confirm("Decline this booking request?")) return;

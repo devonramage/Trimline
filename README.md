@@ -1,15 +1,13 @@
-# Barber Connect Portfolio v1
+# Barber Connect Delete Booking Requests v1
 
 Added:
-- Public portfolio toggle on Add Cut form
-- Barber profile now displays public haircut photos
-- Newest cuts appear first
-- Fullscreen photo modal on tap
-- Portfolio grid layout added to barber profiles
+- Client can delete booking requests from Request Status
+- Barber can delete individual booking requests
+- Client can clear old accepted/declined requests
+- Barber can clear old accepted/declined requests
 
-How it works:
-- Barber saves a cut
-- Checks "Show on Public Profile"
-- Cut photos appear on public barber profile automatically
+Use case:
+- Clean up test booking requests
+- Remove accepted/declined clutter from both sides
 
-No new Firebase rules required if clients can already read cuts.
+No Firebase rules change needed if booking requests can already be deleted by barber/client.
