@@ -1,24 +1,21 @@
-# Trimline Safe Nav v2
+# Trimline Safe Nav v3
 
-This is a safer nav-label-only update.
+Targeted fix based on the actual current index.html structure.
 
 Changes:
-- Does not touch auth/login/signup
-- Settings label becomes Profile
-- Barber mode labels:
+- Static bottom nav "Settings" now says "Profile"
+- Barber nav labels:
   - Home
   - Clients
   - Schedule
   - Profile
-- Client mode labels:
+- Client nav labels:
   - Discover
   - Saved
   - Appointments
   - Profile
-- Adds a Profile Menu button inside Account Settings
-- Adds version marker: TRIMLINE_SAFE_NAV_V2
+- Page title changes based on mode
+- Profile page gets a Menu button
+- Version marker: TRIMLINE_SAFE_NAV_V3
 
-After deploying:
-- Wait for Vercel to finish
-- Hard refresh the site
-- If nothing changes, GitHub/Vercel did not deploy the new index.html
+Upload index.html and README.md to GitHub, commit, then let Vercel redeploy.

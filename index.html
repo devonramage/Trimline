@@ -71,7 +71,7 @@
     .portfolio-empty{padding:18px;border:1px dashed var(--border);border-radius:16px;color:#aaa;text-align:center}
     .portfolio-badge{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.72);padding:5px 9px;border-radius:999px;font-size:11px;font-weight:700}
   </style>
-<meta name="trimline-version" content="TRIMLINE_SAFE_NAV_V2">
+<meta name="trimline-version" content="TRIMLINE_SAFE_NAV_V3">
 </head>
 <body>
   <div id="loginScreen" class="auth-screen">
@@ -136,7 +136,7 @@
       <button class="nav-btn active" data-page="dashboard"><span class="nav-icon">⌂</span><span>Home</span></button>
       <button class="nav-btn" data-page="clients"><span class="nav-icon">✂</span><span>Clients</span></button>
       <button class="nav-btn" data-page="schedule"><span class="nav-icon">◷</span><span>Schedule</span></button>
-      <button class="nav-btn" data-page="profile"><span class="nav-icon">◎</span><span>Settings</span></button>
+      <button class="nav-btn" data-page="profile"><span class="nav-icon">◎</span><span>Profile</span></button>
     </nav>
   </div>
 
@@ -239,7 +239,39 @@
         }, err => showRuntimeError("Client booking requests sync failed: " + err.message)));
       }
     }
-    function updateModeUI() { const mode = state.userProfile?.activeMode || "barber"; $("modePill").textContent = `Mode: ${mode[0].toUpperCase() + mode.slice(1)}`; }
+    function updateModeUI() { 
+      const mode = state.userProfile?.activeMode || "barber"; 
+      $("modePill").textContent = `Mode: ${mode[0].toUpperCase() + mode.slice(1)}`;
+      updateBottomNavLabels();
+    }
+
+    function updateBottomNavLabels() {
+      const labels = isBarberMode()
+        ? {
+            dashboard: ["⌂", "Home"],
+            clients: ["✂", "Clients"],
+            schedule: ["◷", "Schedule"],
+            profile: ["◎", "Profile"]
+          }
+        : {
+            dashboard: ["⌂", "Discover"],
+            clients: ["♡", "Saved"],
+            schedule: ["◷", "Appointments"],
+            profile: ["◎", "Profile"]
+          };
+
+      document.querySelectorAll(".nav-btn").forEach(btn => {
+        const page = btn.dataset.page;
+        const mapped = labels[page];
+        if (!mapped) return;
+
+        const icon = btn.querySelector(".nav-icon") || btn.querySelector("span");
+        const text = btn.querySelector("span:last-child");
+
+        if (icon) icon.textContent = mapped[0];
+        if (text) text.textContent = mapped[1];
+      });
+    }
 
     document.querySelectorAll(".nav-btn").forEach(btn => btn.addEventListener("click", () => { selectedClientId = null; if (btn.dataset.page !== "clients") viewedBarber = null; setPage(btn.dataset.page); }));
 
@@ -259,7 +291,7 @@
       }
     });
 
-function setPage(page) { activePage = page; document.querySelectorAll(".page").forEach(p => p.classList.remove("active")); $(page).classList.add("active"); document.querySelectorAll(".nav-btn").forEach(btn => btn.classList.toggle("active", btn.dataset.page === page)); const titles = {dashboard:"Dashboard",clients:"Clients",schedule:"Schedule",profile:"Settings"}; $("pageTitle").textContent = selectedClientId ? "Client Profile" : titles[page]; render(); }
+function setPage(page) { activePage = page; document.querySelectorAll(".page").forEach(p => p.classList.remove("active")); $(page).classList.add("active"); document.querySelectorAll(".nav-btn").forEach(btn => btn.classList.toggle("active", btn.dataset.page === page)); const titles = isBarberMode() ? {dashboard:"Dashboard",clients:"Clients",schedule:"Schedule",profile:"Profile"} : {dashboard:"Discover",clients:"Saved",schedule:"Appointments",profile:"Profile"}; $("pageTitle").textContent = selectedClientId ? "Client Profile" : titles[page]; render(); }
     function render() { if (!currentUser || !state.userProfile) return; updateModeUI(); renderDashboard(); renderClients(); renderSchedule(); renderProfile(); }
     function activeMode() { return state.userProfile?.activeMode || "barber"; }
     function isBarberMode() { return activeMode() === "barber" && state.userProfile?.roles?.includes("barber"); }
@@ -302,8 +334,8 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
         const selected = state.userProfile?.selectedBarber || null;
         $("clients").innerHTML = `
           <div class="card">
-            <h2>Find Barber</h2>
-            <p class="muted">Search by barber username. Example: devdoescuts</p>
+            <h2>Saved Barbers</h2>
+            <p class="muted">Search by barber username to view profiles, save a barber, or book.</p>
             <label>Barber Username</label>
             <input id="barberSearchInput" placeholder="@username" />
             <div class="btn-row"><button class="btn primary" onclick="searchBarberUsername()">Search Barber</button></div>
@@ -357,7 +389,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
 
       $("profile").innerHTML = `
         <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;"><h2>Account Settings</h2><button class="btn secondary" type="button" onclick="openProfileMenu()" style="width:auto;padding:10px 14px;">Menu</button></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><h2 style="margin:0;">Account Settings</h2><button class="btn secondary" type="button" onclick="openProfileMenu()" style="width:auto;padding:10px 14px;">Menu</button></div>
           <p class="muted">Email: ${escapeHtml(profile.email || currentUser.email || "")}</p>
           <p class="muted">Phone: ${phoneDisplay}</p>
           <div class="tag-wrap">${roles.map(r=>`<span class="pill success">${r}</span>`).join("")}</div>
@@ -1220,55 +1252,6 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     window.declineBookingRequest = window.openDeclineRequestConfirm;
 
     
-
-    function applyTrimlineSafeNavV2() {
-      try {
-        const navButtons = Array.from(document.querySelectorAll(".nav-btn"));
-        if (!navButtons.length) return;
-
-        const barberMode = typeof isBarberMode === "function" ? isBarberMode() : true;
-
-        const barberLabels = {
-          dashboard: ["⌂", "Home"],
-          clients: ["✂️", "Clients"],
-          schedule: ["◷", "Schedule"],
-          settings: ["◎", "Profile"],
-          profile: ["◎", "Profile"]
-        };
-
-        const clientLabels = {
-          dashboard: ["⌂", "Discover"],
-          clients: ["♡", "Saved"],
-          schedule: ["◷", "Appointments"],
-          settings: ["◎", "Profile"],
-          profile: ["◎", "Profile"]
-        };
-
-        const labels = barberMode ? barberLabels : clientLabels;
-
-        navButtons.forEach(btn => {
-          const page = btn.dataset.page || "";
-          const mapped = labels[page];
-          if (!mapped) return;
-
-          const spans = btn.querySelectorAll("span, small");
-          const icon = btn.querySelector("span");
-          const label = btn.querySelector("small");
-
-          if (icon) icon.textContent = mapped[0];
-          if (label) label.textContent = mapped[1];
-
-          // Fallback for navs that don't use small/span cleanly
-          if (!label && spans.length > 1) spans[1].textContent = mapped[1];
-        });
-      } catch (err) {
-        console.error("Safe nav update failed", err);
-      }
-    }
-
-    setInterval(applyTrimlineSafeNavV2, 750);
-
-
 
     window.openProfileMenu = function() {
       openModal("Profile Menu", `
