@@ -794,6 +794,24 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     }
 
 
+
+    window.cancelAppointment = async function(appointmentId) {
+      const appt = (state.appointments || []).find(a => a.id === appointmentId);
+      if (!appt) return alert("Appointment not found.");
+
+      const label = `${appt.service || "Appointment"} on ${formatDate(appt.date)} at ${formatTime(appt.time)}`;
+
+      if (!confirm(`Are you sure you want to cancel this appointment?\n\n${label}`)) return;
+
+      try {
+        await deleteDoc(doc(db, "appointments", appointmentId));
+        alert("Appointment cancelled.");
+      } catch (err) {
+        alert("Cancel failed: " + err.message);
+      }
+    }
+
+
     window.clearOldBookingRequests = async function() {
       const oldRequests = (state.bookingRequests || []).filter(r => (r.status || "pending") !== "pending");
       if (!oldRequests.length) return alert("No old requests to clear.");
