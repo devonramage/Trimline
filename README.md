@@ -1,8 +1,10 @@
-# Trimline Nav Restructure v1
+# Trimline Stable Rollback
 
-Added:
-- Separate barber/client bottom navs
-- Profile menu button
-- Settings moved into Profile flow
-- Client wording updated to Appointments
-- Saved page placeholder
+This restores the last stable working version before the nav restructure broke login.
+
+Use this immediately to get the app working again:
+- Upload index.html and README.md to GitHub
+- Commit changes
+- Let Vercel redeploy
+
+After login works again, we can reattempt split nav more carefully.
