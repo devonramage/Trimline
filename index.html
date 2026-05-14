@@ -72,6 +72,7 @@
     .portfolio-badge{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.72);padding:5px 9px;border-radius:999px;font-size:11px;font-weight:700}
   </style>
 <meta name="trimline-version" content="TRIMLINE_SAFE_NAV_V3">
+<meta name="trimline-version" content="TRIMLINE_BUSINESS_HOURS_V1">
 </head>
 <body>
   <div id="loginScreen" class="auth-screen">
@@ -534,6 +535,108 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
 
     
 
+
+    function defaultBusinessHours() {
+      return {
+        sunday: { open: false, start: "09:00", end: "17:00" },
+        monday: { open: true, start: "09:00", end: "17:00" },
+        tuesday: { open: true, start: "09:00", end: "17:00" },
+        wednesday: { open: true, start: "09:00", end: "17:00" },
+        thursday: { open: true, start: "09:00", end: "17:00" },
+        friday: { open: true, start: "09:00", end: "17:00" },
+        saturday: { open: false, start: "09:00", end: "17:00" }
+      };
+    }
+
+    function mergeBusinessHours(hours) {
+      return { ...defaultBusinessHours(), ...(hours || {}) };
+    }
+
+    function dayKeyFromDate(dateStr) {
+      if (!dateStr) return "";
+      const day = new Date(dateStr + "T00:00:00").getDay();
+      return ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][day];
+    }
+
+    function prettyDay(day) {
+      return day.charAt(0).toUpperCase() + day.slice(1);
+    }
+
+    function minutesFromTime(time) {
+      const [h, m] = String(time || "00:00").split(":").map(Number);
+      return (h * 60) + (m || 0);
+    }
+
+    function timeFromMinutes(total) {
+      const h = Math.floor(total / 60);
+      const m = total % 60;
+      return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+    }
+
+    function timeLabel(time) {
+      if (!time) return "";
+      try {
+        const d = new Date(`2000-01-01T${time}:00`);
+        return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      } catch {
+        return time;
+      }
+    }
+
+    function businessHourTimeOptions(selected = "09:00") {
+      let output = "";
+      for (let hour = 5; hour <= 23; hour++) {
+        for (const minute of [0, 30]) {
+          const value = `${String(hour).padStart(2,"0")}:${String(minute).padStart(2,"0")}`;
+          output += `<option value="${value}" ${value === selected ? "selected" : ""}>${timeLabel(value)}</option>`;
+        }
+      }
+      return output;
+    }
+
+    async function getBarberBusinessHours(barberId) {
+      if (!barberId) return defaultBusinessHours();
+      try {
+        const snap = await getDoc(doc(db, "barbers", barberId));
+        if (!snap.exists()) return defaultBusinessHours();
+        return mergeBusinessHours(snap.data().businessHours);
+      } catch (err) {
+        console.error("Could not load business hours", err);
+        return defaultBusinessHours();
+      }
+    }
+
+    function businessHoursSummary(hours) {
+      const merged = mergeBusinessHours(hours);
+      return Object.keys(merged).map(day => {
+        const item = merged[day];
+        return `<div class="row">
+          <span class="row-main">
+            <strong>${prettyDay(day)}</strong>
+            <span class="muted">${item.open ? `${timeLabel(item.start)} – ${timeLabel(item.end)}` : "Closed"}</span>
+          </span>
+          <span class="pill ${item.open ? "success" : ""}">${item.open ? "Open" : "Off"}</span>
+        </div>`;
+      }).join("");
+    }
+
+    function timeSlotOptionsForHours(dayHours, unavailableTimes = new Set(), selectedValue = "") {
+      if (!dayHours || !dayHours.open) return `<option value="">Closed this day</option>`;
+
+      const start = minutesFromTime(dayHours.start);
+      const end = minutesFromTime(dayHours.end);
+      const slots = [];
+
+      for (let mins = start; mins < end; mins += 30) {
+        const value = timeFromMinutes(mins);
+        const disabled = unavailableTimes.has(value) && value !== selectedValue;
+        slots.push(`<option value="${value}" ${value === selectedValue ? "selected" : ""} ${disabled ? "disabled" : ""}>${timeLabel(value)}${disabled ? " — unavailable" : ""}</option>`);
+      }
+
+      return slots.length ? slots.join("") : `<option value="">No slots available</option>`;
+    }
+
+
     function timeSlotOptions(selectedValue = "") {
       const slots = [];
       for (let hour = 6; hour <= 22; hour++) {
@@ -579,6 +682,108 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
       return unavailable;
     }
 
+
+    function defaultBusinessHours() {
+      return {
+        sunday: { open: false, start: "09:00", end: "17:00" },
+        monday: { open: true, start: "09:00", end: "17:00" },
+        tuesday: { open: true, start: "09:00", end: "17:00" },
+        wednesday: { open: true, start: "09:00", end: "17:00" },
+        thursday: { open: true, start: "09:00", end: "17:00" },
+        friday: { open: true, start: "09:00", end: "17:00" },
+        saturday: { open: false, start: "09:00", end: "17:00" }
+      };
+    }
+
+    function mergeBusinessHours(hours) {
+      return { ...defaultBusinessHours(), ...(hours || {}) };
+    }
+
+    function dayKeyFromDate(dateStr) {
+      if (!dateStr) return "";
+      const day = new Date(dateStr + "T00:00:00").getDay();
+      return ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][day];
+    }
+
+    function prettyDay(day) {
+      return day.charAt(0).toUpperCase() + day.slice(1);
+    }
+
+    function minutesFromTime(time) {
+      const [h, m] = String(time || "00:00").split(":").map(Number);
+      return (h * 60) + (m || 0);
+    }
+
+    function timeFromMinutes(total) {
+      const h = Math.floor(total / 60);
+      const m = total % 60;
+      return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+    }
+
+    function timeLabel(time) {
+      if (!time) return "";
+      try {
+        const d = new Date(`2000-01-01T${time}:00`);
+        return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      } catch {
+        return time;
+      }
+    }
+
+    function businessHourTimeOptions(selected = "09:00") {
+      let output = "";
+      for (let hour = 5; hour <= 23; hour++) {
+        for (const minute of [0, 30]) {
+          const value = `${String(hour).padStart(2,"0")}:${String(minute).padStart(2,"0")}`;
+          output += `<option value="${value}" ${value === selected ? "selected" : ""}>${timeLabel(value)}</option>`;
+        }
+      }
+      return output;
+    }
+
+    async function getBarberBusinessHours(barberId) {
+      if (!barberId) return defaultBusinessHours();
+      try {
+        const snap = await getDoc(doc(db, "barbers", barberId));
+        if (!snap.exists()) return defaultBusinessHours();
+        return mergeBusinessHours(snap.data().businessHours);
+      } catch (err) {
+        console.error("Could not load business hours", err);
+        return defaultBusinessHours();
+      }
+    }
+
+    function businessHoursSummary(hours) {
+      const merged = mergeBusinessHours(hours);
+      return Object.keys(merged).map(day => {
+        const item = merged[day];
+        return `<div class="row">
+          <span class="row-main">
+            <strong>${prettyDay(day)}</strong>
+            <span class="muted">${item.open ? `${timeLabel(item.start)} – ${timeLabel(item.end)}` : "Closed"}</span>
+          </span>
+          <span class="pill ${item.open ? "success" : ""}">${item.open ? "Open" : "Off"}</span>
+        </div>`;
+      }).join("");
+    }
+
+    function timeSlotOptionsForHours(dayHours, unavailableTimes = new Set(), selectedValue = "") {
+      if (!dayHours || !dayHours.open) return `<option value="">Closed this day</option>`;
+
+      const start = minutesFromTime(dayHours.start);
+      const end = minutesFromTime(dayHours.end);
+      const slots = [];
+
+      for (let mins = start; mins < end; mins += 30) {
+        const value = timeFromMinutes(mins);
+        const disabled = unavailableTimes.has(value) && value !== selectedValue;
+        slots.push(`<option value="${value}" ${value === selectedValue ? "selected" : ""} ${disabled ? "disabled" : ""}>${timeLabel(value)}${disabled ? " — unavailable" : ""}</option>`);
+      }
+
+      return slots.length ? slots.join("") : `<option value="">No slots available</option>`;
+    }
+
+
     function timeSlotOptionsWithUnavailable(unavailableTimes = new Set(), selectedValue = "") {
       const slots = [];
       for (let hour = 6; hour <= 22; hour++) {
@@ -603,18 +808,26 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
 
       try {
         if (note) note.textContent = "Checking availability...";
-        const unavailable = await getUnavailableTimesForBarber(selected.id, date);
-        const currentValue = timeSelect.value;
-        timeSelect.innerHTML = timeSlotOptionsWithUnavailable(unavailable, currentValue);
 
-        const availableCount = Array.from(timeSelect.options).filter(o => !o.disabled).length;
-        if (note) note.textContent = availableCount ? `${availableCount} time slots available.` : "No available time slots for this day.";
+        const hours = await getBarberBusinessHours(selected.id);
+        const dayHours = hours[dayKeyFromDate(date)];
+
+        if (!dayHours?.open) {
+          timeSelect.innerHTML = `<option value="">Closed this day</option>`;
+          if (note) note.textContent = "This barber is closed on this day.";
+          return;
+        }
+
+        const unavailable = await getUnavailableTimesForBarber(selected.id, date);
+        timeSelect.innerHTML = timeSlotOptionsForHours(dayHours, unavailable, timeSelect.value);
+
+        const availableCount = Array.from(timeSelect.options).filter(o => !o.disabled && o.value).length;
+        if (note) note.textContent = availableCount ? `${availableCount} time slots available inside business hours.` : "No available time slots for this day.";
       } catch (err) {
         if (note) note.textContent = "Could not check availability.";
         console.error(err);
       }
     }
-
 
 
     async function hasDuplicatePendingRequest(barberId, clientUserId, date, time) {
@@ -700,7 +913,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
         <input id="requestDate" type="date" value="${getToday()}" />
 
         <label>Time</label>
-        <select id="requestTime">${timeSlotOptions()}</select>
+        <select id="requestTime"><option value="">Choose a date first</option></select>
         <p id="availabilityNote" class="muted" style="margin-top:8px;">Checking availability...</p>
 
         <label>Notes</label>
@@ -725,7 +938,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
 
       if (!clientName) return alert("Add your name first.");
       if (!requestDate) return alert("Pick a date.");
-      if (!requestTime) return alert("Pick a time.");
+      if (!requestTime) return alert("Pick an available time.");
       if (!service) return alert("Pick a service.");
 
       setSendRequestLoading(true);
@@ -734,6 +947,23 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
         const duplicate = await hasDuplicatePendingRequest(selected.id, currentUser.uid, requestDate, requestTime);
         if (duplicate) {
           alert("You already have a request for that date and time.");
+          setSendRequestLoading(false);
+          return;
+        }
+
+        const hours = await getBarberBusinessHours(selected.id);
+        const dayHours = hours[dayKeyFromDate(requestDate)];
+        if (!dayHours?.open) {
+          alert("This barber is closed on that day.");
+          await refreshRequestTimeSlots();
+          setSendRequestLoading(false);
+          return;
+        }
+
+        const requestMinutes = minutesFromTime(requestTime);
+        if (requestMinutes < minutesFromTime(dayHours.start) || requestMinutes >= minutesFromTime(dayHours.end)) {
+          alert("That time is outside this barber's business hours.");
+          await refreshRequestTimeSlots();
           setSendRequestLoading(false);
           return;
         }
@@ -1261,6 +1491,67 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           <button class="btn danger" type="button" onclick="logout()">Logout</button>
         </div>
       `);
+    }
+
+
+
+    window.openBusinessHours = function() {
+      const hours = mergeBusinessHours(state.barber?.businessHours);
+      const days = Object.keys(hours);
+
+      openModal("Business Hours", `
+        <p class="muted">Set your weekly availability. Clients will only see open days and times.</p>
+        <div class="list">
+          ${days.map(day => `
+            <div class="card" style="margin-bottom:8px;background:#0b0b0b;">
+              <label style="display:flex;align-items:center;gap:10px;margin:0 0 10px;text-transform:none;letter-spacing:0;">
+                <input type="checkbox" id="hours_${day}_open" ${hours[day].open ? "checked" : ""} style="width:auto;" />
+                ${prettyDay(day)}
+              </label>
+              <div class="grid grid-2">
+                <div>
+                  <label>Start</label>
+                  <select id="hours_${day}_start">${businessHourTimeOptions(hours[day].start)}</select>
+                </div>
+                <div>
+                  <label>End</label>
+                  <select id="hours_${day}_end">${businessHourTimeOptions(hours[day].end)}</select>
+                </div>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+        <div class="btn-row"><button class="btn primary" type="button" onclick="saveBusinessHours()">Save Hours</button></div>
+      `);
+    }
+
+    window.saveBusinessHours = async function() {
+      try {
+        const base = defaultBusinessHours();
+        const output = {};
+
+        for (const day of Object.keys(base)) {
+          const open = document.getElementById(`hours_${day}_open`)?.checked || false;
+          const start = document.getElementById(`hours_${day}_start`)?.value || "09:00";
+          const end = document.getElementById(`hours_${day}_end`)?.value || "17:00";
+
+          if (open && minutesFromTime(end) <= minutesFromTime(start)) {
+            return alert(`${prettyDay(day)} end time must be after start time.`);
+          }
+
+          output[day] = { open, start, end };
+        }
+
+        await setDoc(doc(db, "barbers", currentUser.uid), {
+          businessHours: output,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        closeModal();
+        alert("Business hours saved.");
+      } catch (err) {
+        alert("Could not save hours: " + err.message);
+      }
     }
 
 
