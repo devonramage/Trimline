@@ -1,11 +1,15 @@
-# Trimline Rollback — Login Working
+# Trimline Most Stable Rollback
 
-This restores the last stable version after the Business Hours build broke login buttons.
+This restores the most stable working version before the profile layout changes broke buttons.
 
-Upload:
-- index.html
-- README.md
+Use this now:
+- Upload index.html and README.md to GitHub
+- Commit changes
+- Let Vercel redeploy
 
-Then commit and let Vercel redeploy.
-
-After login is restored, rebuild Business Hours in a smaller isolated version.
+Stable point:
+- Auth works
+- Booking flow works
+- Cancel confirmation works
+- Safe nav labels work
+- No broken profile layout changes
