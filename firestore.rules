@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isOwner(barberId) {
+      return signedIn() && request.auth.uid == barberId;
+    }
+
+    match /users/{userId} {
+      allow read, write: if isSelf(userId);
+    }
+
+    match /barbers/{barberId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isOwner(barberId);
+    }
+
+    match /clients/{clientId} {
+      allow create: if isOwner(request.resource.data.barberId);
+      allow read, update, delete: if isOwner(resource.data.barberId);
+    }
+
+    match /cuts/{cutId} {
+      allow create: if isOwner(request.resource.data.barberId);
+      allow read, update, delete: if isOwner(resource.data.barberId);
+    }
+
+    match /appointments/{appointmentId} {
+      allow create: if isOwner(request.resource.data.barberId);
+      allow read, update, delete: if isOwner(resource.data.barberId);
+    }
+
+    match /bookingRequests/{requestId} {
+      allow create: if signedIn() && request.resource.data.clientUserId == request.auth.uid;
+      allow read, update, delete: if signedIn() && (
+        resource.data.barberId == request.auth.uid ||
+        resource.data.clientUserId == request.auth.uid
+      );
+    }
+  }
+}

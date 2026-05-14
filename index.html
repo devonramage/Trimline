@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Barber Connect</title>
+  <meta name="theme-color" content="#050505" />
+  <style>
+    :root {
+      --bg:#050505; --panel:#111; --panel2:#181818; --border:#2a2a2a;
+      --text:#f4f4f4; --muted:#a3a3a3; --success:#72e096; --danger:#ff6b6b; --warning:#ffd166;
+      --radius:18px;
+    }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body {
+      margin:0; background:radial-gradient(circle at top right, rgba(255,255,255,.08), transparent 28%), var(--bg);
+      color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; min-height:100vh;
+    }
+    button,input,textarea,select{font:inherit}
+    .hidden{display:none!important}
+    .app-shell{max-width:520px;margin:0 auto;min-height:100vh;padding-bottom:92px}
+    header{padding:22px 18px 12px;position:sticky;top:0;z-index:5;background:linear-gradient(to bottom,rgba(5,5,5,.98),rgba(5,5,5,.82),transparent);backdrop-filter:blur(12px)}
+    .brand-row{display:flex;align-items:center;justify-content:space-between;gap:14px}
+    .logo-mark{width:42px;height:42px;border:1px solid var(--border);border-radius:14px;display:grid;place-items:center;font-weight:900;background:linear-gradient(145deg,#1a1a1a,#050505);letter-spacing:-2px}
+    .brand-copy{flex:1}.eyebrow{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.13em;margin-bottom:3px}
+    h1,h2,h3,p{margin:0} h1{font-size:26px;letter-spacing:-.05em} h2{font-size:21px;letter-spacing:-.04em;margin-bottom:12px} h3{font-size:16px;letter-spacing:-.02em;margin-bottom:6px}
+    .page{display:none;padding:12px 18px 24px;animation:fadeIn 160ms ease}.page.active{display:block}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+    .grid{display:grid;gap:12px}.grid-2{grid-template-columns:1fr 1fr}
+    .card{background:rgba(17,17,17,.92);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+    .stat{min-height:94px;display:flex;flex-direction:column;justify-content:space-between}.stat strong{font-size:30px;line-height:1}
+    .muted{color:var(--muted);font-size:13px;line-height:1.4}.small{font-size:12px;color:var(--muted)}
+    .list{display:grid;gap:10px}
+    .row{width:100%;border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:15px;padding:13px;display:flex;justify-content:space-between;gap:12px;text-align:left;cursor:pointer}
+    .row-main{display:grid;gap:4px}.pill{border:1px solid var(--border);background:#0c0c0c;color:var(--muted);padding:5px 9px;border-radius:999px;font-size:12px;white-space:nowrap;height:fit-content}
+    .pill.success{color:var(--success);border-color:rgba(114,224,150,.35)}.pill.warning{color:var(--warning);border-color:rgba(255,209,102,.35)}.pill.danger{color:var(--danger);border-color:rgba(255,95,95,.35)}
+    .btn-row{display:flex;gap:10px;margin-top:12px}.btn{border:0;border-radius:14px;padding:13px 14px;font-weight:800;cursor:pointer;min-height:46px}
+    .btn.primary{background:#fff;color:#000;width:100%}.btn:disabled{cursor:not-allowed;opacity:.65}.btn.secondary{background:var(--panel2);color:#fff;border:1px solid var(--border);width:100%}.btn.danger{background:rgba(255,95,95,.12);color:#ff8b8b;border:1px solid rgba(255,95,95,.35);width:100%}
+    label{display:block;font-size:12px;color:var(--muted);margin:12px 0 6px;text-transform:uppercase;letter-spacing:.08em}
+    input,textarea,select{width:100%;background:#080808;color:#fff;border:1px solid var(--border);border-radius:13px;padding:13px;outline:none}
+    textarea{min-height:86px;resize:vertical}
+    .bottom-nav{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:100%;max-width:520px;background:rgba(0,0,0,.94);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(4,1fr);padding:10px 8px calc(10px + env(safe-area-inset-bottom));backdrop-filter:blur(18px);z-index:20}
+    .nav-btn{border:0;background:transparent;color:var(--muted);display:grid;gap:4px;justify-items:center;font-size:11px;cursor:pointer;padding:6px 2px;border-radius:13px}.nav-btn.active{color:#fff;background:#111}.nav-icon{font-size:18px}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:50;display:none;align-items:flex-end;justify-content:center}.modal.active{display:flex}
+    .modal-card{width:100%;max-width:520px;background:#101010;border:1px solid var(--border);border-radius:24px 24px 0 0;padding:18px;max-height:90vh;overflow:auto}
+    .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.x-btn{width:38px;height:38px;border-radius:12px;border:1px solid var(--border);background:#181818;color:#fff;font-size:20px}
+    .photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.photo-box{aspect-ratio:1;border-radius:13px;background:#080808;border:1px solid var(--border);overflow:hidden;display:grid;place-items:center;color:var(--muted);font-size:12px}.photo-box img{width:100%;height:100%;object-fit:cover}
+    .profile-hero{display:flex;gap:14px;align-items:center}.avatar{width:64px;height:64px;border-radius:20px;background:white;color:black;display:grid;place-items:center;font-weight:900;font-size:22px}
+    .empty{color:var(--muted);border:1px dashed var(--border);border-radius:var(--radius);padding:20px;text-align:center}.tag-wrap{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}.detail-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+    .auth-screen{min-height:100vh;max-width:520px;margin:0 auto;padding:36px 18px;display:grid;align-content:center}.auth-logo{font-size:42px;font-weight:950;letter-spacing:-.08em;margin-bottom:8px}.error{color:#ff8b8b;font-size:13px;margin-top:10px}
+    .role-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+    .role-card{border:1px solid var(--border);background:#0b0b0b;border-radius:16px;padding:14px;cursor:pointer}.role-card.active{border-color:#fff;background:#181818}
+    .auth-link{background:transparent;border:0;color:#fff;text-decoration:underline;padding:0;cursor:pointer;font-weight:700}
+    .google-btn{display:flex;align-items:center;justify-content:center;gap:10px}
+    .mode-banner{padding:10px 18px 0;max-width:520px;margin:0 auto}
+
+    .username-row{display:flex;gap:8px;align-items:center;margin-top:8px}
+    .username-box{font-weight:900;font-size:18px;letter-spacing:-.03em}
+    .search-result{border:1px solid var(--border);background:#0b0b0b;border-radius:16px;padding:14px;margin-top:12px}
+
+  </style>
+</head>
+<body>
+  <div id="loginScreen" class="auth-screen">
+    <div class="auth-logo">Barber Connect</div>
+    <p class="muted">Sign in to your barber or client account.</p>
+    <div class="card" style="margin-top:18px;">
+      <label>Email</label><input id="loginEmail" type="email" placeholder="you@email.com" />
+      <label>Password</label><input id="loginPassword" type="password" placeholder="Password" />
+      <div class="btn-row"><button class="btn primary" id="loginBtn">Login</button></div>
+      <div class="btn-row"><button class="btn secondary google-btn" id="googleLoginBtn">Continue with Google</button></div>
+      <p class="muted" style="margin-top:14px;">Don't have an account? <button class="auth-link" id="showSignupBtn">Sign up</button></p>
+      <p id="loginError" class="error"></p>
+    </div>
+  </div>
+
+  <div id="signupScreen" class="auth-screen hidden">
+    <div class="auth-logo">Create Account</div>
+    <p class="muted">Choose your permissions. You can change modes later in Settings.</p>
+    <div class="card" style="margin-top:18px;">
+      <label>Name</label><input id="signupName" placeholder="Your name" />
+      <label>Email</label><input id="signupEmail" type="email" placeholder="you@email.com" />
+      <label>Phone <span class="muted" style="text-transform:none;letter-spacing:0;">Recommended, optional</span></label><input id="signupPhone" type="tel" placeholder="Phone number" />
+      <label>Password</label><input id="signupPassword" type="password" placeholder="Minimum 6 characters" />
+      <label>Account Permissions</label>
+      <div class="role-grid">
+        <div class="role-card active" id="signupBarberRole" onclick="toggleSignupRole('barber')"><strong>Barber</strong><p class="muted">Manage clients, cuts, and schedule.</p></div>
+        <div class="role-card" id="signupClientRole" onclick="toggleSignupRole('client')"><strong>Client</strong><p class="muted">View cuts and request bookings.</p></div>
+      </div>
+      <div class="btn-row"><button class="btn primary" id="signupBtn">Create Account</button></div>
+      <div class="btn-row"><button class="btn secondary google-btn" id="googleSignupBtn">Continue with Google</button></div>
+      <p class="muted" style="margin-top:14px;">Already have an account? <button class="auth-link" id="showLoginBtn">Login</button></p>
+      <p id="signupError" class="error"></p>
+    </div>
+  </div>
+
+  <div id="roleSetupScreen" class="auth-screen hidden">
+    <div class="auth-logo">One more thing</div>
+    <p class="muted">Choose how you want to use Barber Connect.</p>
+    <div class="card" style="margin-top:18px;">
+      <label>Display Name</label><input id="setupName" placeholder="Your name" />
+      <label>Phone <span class="muted" style="text-transform:none;letter-spacing:0;">Recommended, optional</span></label><input id="setupPhone" type="tel" placeholder="Phone number" />
+      <label>Account Permissions</label>
+      <div class="role-grid">
+        <button type="button" class="role-card active" id="setupBarberRole" onclick="toggleSetupRole('barber')"><strong>Barber</strong><p class="muted">Full barber dashboard.</p></button>
+        <button type="button" class="role-card" id="setupClientRole" onclick="toggleSetupRole('client')"><strong>Client</strong><p class="muted">Client dashboard.</p></button>
+      </div>
+      <div class="btn-row"><button type="button" class="btn primary" id="finishSetupBtn">Finish Setup</button></div>
+      <p id="setupError" class="error"></p>
+    </div>
+  </div>
+
+  <div id="appShell" class="app-shell hidden">
+    <header><div class="brand-row"><div class="logo-mark">BC</div><div class="brand-copy"><div class="eyebrow" id="syncStatus">Firebase MVP</div><h1 id="pageTitle">Dashboard</h1></div></div></header>
+    <div class="mode-banner"><span class="pill" id="modePill">Mode: Barber</span></div>
+    <main>
+      <section id="dashboard" class="page active"></section>
+      <section id="clients" class="page"></section>
+      <section id="schedule" class="page"></section>
+      <section id="profile" class="page"></section>
+    </main>
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-page="dashboard"><span class="nav-icon">⌂</span><span>Home</span></button>
+      <button class="nav-btn" data-page="clients"><span class="nav-icon">✂</span><span>Clients</span></button>
+      <button class="nav-btn" data-page="schedule"><span class="nav-icon">◷</span><span>Schedule</span></button>
+      <button class="nav-btn" data-page="profile"><span class="nav-icon">◎</span><span>Settings</span></button>
+    </nav>
+  </div>
+
+  <div id="modal" class="modal"><div class="modal-card"><div class="modal-head"><h2 id="modalTitle">Modal</h2><button class="x-btn" onclick="closeModal()">×</button></div><div id="modalBody"></div></div></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, addDoc, getDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, updateDoc, getDocs, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+
+    const firebaseConfig = {
+  apiKey: "AIzaSyBVmZRCXNxIa4c6b8Q_61BdC4BygI9q2q4",
+  authDomain: "trimlinev2.firebaseapp.com",
+  projectId: "trimlinev2",
+  storageBucket: "trimlinev2.firebasestorage.app",
+  messagingSenderId: "921258228784",
+  appId: "1:921258228784:web:b383cebb2d78f981ad41f5",
+  measurementId: "G-BT9KGM4CGN"
+};
+
+    const isConfigured = !firebaseConfig.apiKey.includes("PASTE_");
+    let app, auth, db, storage;
+    if (isConfigured) { app = initializeApp(firebaseConfig); auth = getAuth(app); db = getFirestore(app); storage = getStorage(app); }
+
+    let currentUser = null, activePage = "dashboard", selectedClientId = null;
+    let signupRoles = ["barber"], setupRoles = ["barber"];
+    let state = { userProfile:null, barber:null, clients:[], cuts:[], appointments:[], bookingRequests:[] };
+    let unsubscribers = [];
+    const $ = id => document.getElementById(id);
+
+    if (!isConfigured) {
+      $("loginError").textContent = "Firebase config missing.";
+    } else {
+      $("loginBtn").onclick = login; $("signupBtn").onclick = signup; $("googleLoginBtn").onclick = googleSignIn; $("googleSignupBtn").onclick = googleSignIn;
+      $("showSignupBtn").onclick = () => showAuth("signup"); $("showLoginBtn").onclick = () => showAuth("login"); $("finishSetupBtn").onclick = finishRoleSetup;
+
+
+      getRedirectResult(auth).catch(err => {
+        $("loginError").textContent = cleanFirebaseError(err.message || "Google sign in failed");
+        $("signupError").textContent = cleanFirebaseError(err.message || "Google sign in failed");
+      });
+
+      onAuthStateChanged(auth, async user => {
+        unsubscribers.forEach(u => u()); unsubscribers = []; currentUser = user;
+        if (!user) { showAuth("login"); $("appShell").classList.add("hidden"); return; }
+        const profileSnap = await getDoc(doc(db, "users", user.uid));
+        if (!profileSnap.exists()) { $("setupName").value = user.displayName || ""; showAuth("setup"); $("appShell").classList.add("hidden"); return; }
+        state.userProfile = { id: profileSnap.id, ...profileSnap.data() };
+        await ensureModeData(); showApp(); subscribeToData();
+      });
+    }
+
+    function showAuth(which) {
+      $("loginScreen").classList.toggle("hidden", which !== "login");
+      $("signupScreen").classList.toggle("hidden", which !== "signup");
+      $("roleSetupScreen").classList.toggle("hidden", which !== "setup");
+    }
+    function showApp() { $("loginScreen").classList.add("hidden"); $("signupScreen").classList.add("hidden"); $("roleSetupScreen").classList.add("hidden"); $("appShell").classList.remove("hidden"); setPage("dashboard"); }
+
+    window.toggleSignupRole = function(role) { signupRoles = toggleRole(signupRoles, role); if (!signupRoles.length) signupRoles = [role]; $("signupBarberRole").classList.toggle("active", signupRoles.includes("barber")); $("signupClientRole").classList.toggle("active", signupRoles.includes("client")); }
+    window.toggleSetupRole = function(role) { setupRoles = toggleRole(setupRoles, role); if (!setupRoles.length) setupRoles = [role]; $("setupBarberRole").classList.toggle("active", setupRoles.includes("barber")); $("setupClientRole").classList.toggle("active", setupRoles.includes("client")); }
+    function toggleRole(list, role) { return list.includes(role) ? list.filter(r => r !== role) : [...list, role]; }
+
+    async function login() { $("loginError").textContent = ""; try { await signInWithEmailAndPassword(auth, val("loginEmail"), val("loginPassword")); } catch(err) { $("loginError").textContent = cleanFirebaseError(err.message); } }
+    async function signup() { $("signupError").textContent = ""; try { const cred = await createUserWithEmailAndPassword(auth, val("signupEmail"), val("signupPassword")); await createUserProfile(cred.user, val("signupName"), signupRoles, val("signupPhone")); } catch(err) { $("signupError").textContent = cleanFirebaseError(err.message); } }
+    async function googleSignIn() { $("loginError").textContent = ""; $("signupError").textContent = ""; try { const provider = new GoogleAuthProvider(); const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent); if (isMobile) { await signInWithRedirect(auth, provider); } else { await signInWithPopup(auth, provider); } } catch(err) { $("loginError").textContent = cleanFirebaseError(err.message || "Google sign in failed"); $("signupError").textContent = cleanFirebaseError(err.message || "Google sign in failed"); } }
+    async function finishRoleSetup() { $("setupError").textContent = ""; try { await createUserProfile(currentUser, val("setupName") || currentUser.displayName || "New User", setupRoles, val("setupPhone")); } catch(err) { $("setupError").textContent = cleanFirebaseError(err.message); } }
+
+    async function createUserProfile(user, name, roles, phone = "") {
+      const activeMode = roles.includes("barber") ? "barber" : "client";
+      await setDoc(doc(db, "users", user.uid), { uid:user.uid, email:user.email, name:name || user.displayName || "New User", phone: phone || "", roles, activeMode, createdAt:serverTimestamp() }, { merge:true });
+      if (roles.includes("barber")) await setDoc(doc(db, "barbers", user.uid), { uid:user.uid, email:user.email, name:name || user.displayName || "New Barber", shopName:"Barber Connect Studio", location:"", bio:"Edit your barber profile.", services:"Fade, Taper, Beard Trim", username:"", usernameLower:"", createdAt:serverTimestamp() }, { merge:true });
+    }
+    async function ensureModeData() {
+      const profile = state.userProfile;
+      if (profile.roles?.includes("barber")) {
+        const barberSnap = await getDoc(doc(db, "barbers", currentUser.uid));
+        if (!barberSnap.exists()) await setDoc(doc(db, "barbers", currentUser.uid), { uid:currentUser.uid, email:currentUser.email, name:profile.name || "New Barber", shopName:"Barber Connect Studio", location:"", bio:"Edit your barber profile.", services:"Fade, Taper, Beard Trim", username:"", usernameLower:"", createdAt:serverTimestamp() });
+      }
+    }
+
+    function subscribeToData() {
+      $("syncStatus").textContent = "Syncing...";
+      unsubscribers.push(onSnapshot(doc(db, "users", currentUser.uid), snap => { state.userProfile = { id:snap.id, ...snap.data() }; updateModeUI(); render(); }, err => showRuntimeError("User sync failed: " + err.message)));
+      if (state.userProfile.roles?.includes("barber")) {
+        unsubscribers.push(onSnapshot(doc(db, "barbers", currentUser.uid), snap => { state.barber = snap.exists() ? { id:snap.id, ...snap.data() } : null; render(); }, err => showRuntimeError("Barber sync failed: " + err.message)));
+        unsubscribers.push(onSnapshot(query(collection(db, "clients"), where("barberId", "==", currentUser.uid)), snap => { state.clients = snap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>String(b.createdAt?.seconds||0).localeCompare(String(a.createdAt?.seconds||0))); render(); }, err => showRuntimeError("Clients sync failed: " + err.message)));
+        unsubscribers.push(onSnapshot(query(collection(db, "cuts"), where("barberId", "==", currentUser.uid)), snap => { state.cuts = snap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))); render(); }, err => showRuntimeError("Cuts sync failed: " + err.message)));
+        unsubscribers.push(onSnapshot(query(collection(db, "appointments"), where("barberId", "==", currentUser.uid)), snap => { state.appointments = snap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>`${a.date||""} ${a.time||""}`.localeCompare(`${b.date||""} ${b.time||""}`)); $("syncStatus").textContent = "Live Cloud Sync"; render(); }, err => showRuntimeError("Appointments sync failed: " + err.message)));
+        unsubscribers.push(onSnapshot(query(collection(db, "bookingRequests"), where("barberId", "==", currentUser.uid)), snap => {
+          state.bookingRequests = snap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>`${a.date||""} ${a.time||""}`.localeCompare(`${b.date||""} ${b.time||""}`));
+          render();
+        }, err => showRuntimeError("Booking requests sync failed: " + err.message)));
+      } else {
+        unsubscribers.push(onSnapshot(query(collection(db, "bookingRequests"), where("clientUserId", "==", currentUser.uid)), snap => {
+          state.bookingRequests = snap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>`${a.date||""} ${a.time||""}`.localeCompare(`${b.date||""} ${b.time||""}`));
+          $("syncStatus").textContent = "Client Mode";
+          render();
+        }, err => showRuntimeError("Client booking requests sync failed: " + err.message)));
+      }
+    }
+    function updateModeUI() { const mode = state.userProfile?.activeMode || "barber"; $("modePill").textContent = `Mode: ${mode[0].toUpperCase() + mode.slice(1)}`; }
+
+    document.querySelectorAll(".nav-btn").forEach(btn => btn.addEventListener("click", () => { selectedClientId = null; setPage(btn.dataset.page); }));
+
+    
+    document.addEventListener("click", (event) => {
+      const actionTarget = event.target.closest("[data-action]");
+      if (!actionTarget) return;
+
+      if (actionTarget.dataset.action === "edit-account") {
+        event.preventDefault();
+        openEditAccountModal();
+      }
+
+      if (actionTarget.dataset.action === "edit-username") {
+        event.preventDefault();
+        openEditUsernameModal();
+      }
+    });
+
+function setPage(page) { activePage = page; document.querySelectorAll(".page").forEach(p => p.classList.remove("active")); $(page).classList.add("active"); document.querySelectorAll(".nav-btn").forEach(btn => btn.classList.toggle("active", btn.dataset.page === page)); const titles = {dashboard:"Dashboard",clients:"Clients",schedule:"Schedule",profile:"Settings"}; $("pageTitle").textContent = selectedClientId ? "Client Profile" : titles[page]; render(); }
+    function render() { if (!currentUser || !state.userProfile) return; updateModeUI(); renderDashboard(); renderClients(); renderSchedule(); renderProfile(); }
+    function activeMode() { return state.userProfile?.activeMode || "barber"; }
+    function isBarberMode() { return activeMode() === "barber" && state.userProfile?.roles?.includes("barber"); }
+
+    function renderDashboard() {
+      if (!isBarberMode()) { 
+        const selected = state.userProfile?.selectedBarber || null;
+        $("dashboard").innerHTML = `
+          <div class="card">
+            <h2>Client Dashboard</h2>
+            <p class="muted">Find and select your barber by username.</p>
+          </div>
+          <div class="card">
+            <h2>Selected Barber</h2>
+            ${selected ? `
+              <p><strong>${escapeHtml(selected.name || "Barber")}</strong></p>
+              <p class="muted">${escapeHtml(selected.shopName || "")}</p>
+              <p class="muted">@${escapeHtml(selected.username || "")}</p>
+            ` : `<div class="empty">No barber selected yet.</div>`}
+            <div class="btn-row"><button class="btn primary" onclick="openFindBarber()">Find Barber</button></div>${selected ? `<div class="btn-row"><button class="btn secondary" onclick="openRequestBooking()">Request Booking</button></div>` : ""}
+          </div>
+          <div class="card">
+            <h2>Recent Booking Requests</h2>
+            <div class="list">${(state.bookingRequests || []).slice(0,3).length ? (state.bookingRequests || []).slice(0,3).map(r=>clientBookingRequestRow(r)).join("") : `<div class="empty">No booking requests yet.</div>`}</div>
+          </div>
+        `; 
+        return; 
+      }
+      const today = getToday(); const todays = state.appointments.filter(a => a.date === today && a.status !== "cancelled"); const recentCuts = [...state.cuts].slice(0,3);
+      $("dashboard").innerHTML = `<div class="grid grid-2"><div class="card stat"><span class="muted">Clients</span><strong>${state.clients.length}</strong></div><div class="card stat"><span class="muted">Saved Cuts</span><strong>${state.cuts.length}</strong></div></div><div class="card"><h2>Today</h2><div class="list">${todays.length ? todays.map(a=>appointmentRow(a)).join("") : `<div class="empty">No appointments today.</div>`}</div><div class="btn-row"><button class="btn primary" onclick="openAddAppointment()">Add Appointment</button></div></div><div class="card">
+          <h2>Booking Requests</h2>
+          <div class="list">${pendingBookingRequests().length ? pendingBookingRequests().map(r=>bookingRequestRow(r)).join("") : `<div class="empty">No pending booking requests.</div>`}</div>
+        </div><div class="card"><h2>Recent Cuts</h2><div class="list">${recentCuts.length ? recentCuts.map(c=>cutRow(c)).join("") : `<div class="empty">No cuts saved yet.</div>`}</div></div>`;
+    }
+    function renderClients() {
+      if (!isBarberMode()) { 
+        const selected = state.userProfile?.selectedBarber || null;
+        $("clients").innerHTML = `
+          <div class="card">
+            <h2>Find Barber</h2>
+            <p class="muted">Search by barber username. Example: devdoescuts</p>
+            <label>Barber Username</label>
+            <input id="barberSearchInput" placeholder="@username" />
+            <div class="btn-row"><button class="btn primary" onclick="searchBarberUsername()">Search Barber</button></div>
+            <div id="barberSearchResults"></div>
+          </div>
+          <div class="card">
+            <h2>Current Barber</h2>
+            ${selected ? `
+              <p><strong>${escapeHtml(selected.name || "Barber")}</strong></p>
+              <p class="muted">${escapeHtml(selected.shopName || "")}</p>
+              <p class="muted">@${escapeHtml(selected.username || "")}</p>
+            ` : `<div class="empty">No barber selected.</div>`}
+          </div>
+        `;
+        return; 
+      }
+      if (selectedClientId) return renderClientDetail();
+      $("clients").innerHTML = `<div class="card"><h2>Client List</h2><div class="list">${state.clients.length ? state.clients.map(c=>`<button class="row" onclick="viewClient('${c.id}')"><span class="row-main"><strong>${escapeHtml(c.name)}</strong><span class="muted">${escapeHtml(c.phone||"No phone")}</span></span><span class="pill">${cutsForClient(c.id).length} cuts</span></button>`).join("") : `<div class="empty">No clients yet.</div>`}</div><div class="btn-row"><button class="btn primary" onclick="openAddClient()">Add Client</button></div></div>`;
+    }
+    function renderClientDetail() {
+      const client = clientById(selectedClientId); if (!client) { selectedClientId = null; return renderClients(); }
+      const clientCuts = cutsForClient(client.id), clientAppts = appointmentsForClient(client.id);
+      $("clients").innerHTML = `<button class="btn secondary" onclick="backToClients()">← Back to Clients</button><div class="card" style="margin-top:12px;"><div class="profile-hero"><div class="avatar">${initials(client.name)}</div><div><h2>${escapeHtml(client.name)}</h2><p class="muted">${escapeHtml(client.phone||"No phone")}</p></div></div><div class="tag-wrap"><span class="pill">${clientCuts.length} saved cuts</span><span class="pill">${clientAppts.length} appointments</span></div><div class="detail-actions"><button class="btn primary" onclick="openAddCut('${client.id}')">Add Cut</button><button class="btn secondary" onclick="openAddAppointment('${client.id}')">Book</button></div></div><div class="card"><h2>Preferences</h2><p class="muted">${escapeHtml(client.preferences||"No preferences saved.")}</p><br><h3>Notes</h3><p class="muted">${escapeHtml(client.notes||"No notes saved.")}</p></div><div class="card"><h2>Cut History</h2><div class="list">${clientCuts.length ? clientCuts.map(c=>cutDetail(c)).join("") : `<div class="empty">No cuts linked to this client yet.</div>`}</div></div><div class="card"><h2>Appointments</h2><div class="list">${clientAppts.length ? clientAppts.map(a=>appointmentRow(a)).join("") : `<div class="empty">No appointments for this client.</div>`}</div></div><button class="btn danger" onclick="deleteClient('${client.id}')">Delete Client</button>`;
+    }
+    function renderSchedule() {
+      if (!isBarberMode()) { 
+        const selected = state.userProfile?.selectedBarber || null;
+        $("schedule").innerHTML = `
+          <div class="card">
+            <h2>My Bookings</h2>
+            <p class="muted">Track pending, accepted, and declined booking requests.</p>
+            ${selected ? `<p class="muted">Selected: @${escapeHtml(selected.username || "")}</p><div class="btn-row"><button class="btn primary" onclick="openRequestBooking()">Request Booking</button></div>` : `<div class="empty">Select a barber before requesting a booking.</div><div class="btn-row"><button class="btn secondary" onclick="openFindBarber()">Find Barber</button></div>`}
+          </div>
+          <div class="card">
+            <h2>Request Status</h2>
+            <div class="list">${(state.bookingRequests || []).length ? state.bookingRequests.map(r=>clientBookingRequestRow(r)).join("") : `<div class="empty">No booking requests yet.</div>`}</div>
+          </div>
+        `; 
+        return; 
+      }
+      $("schedule").innerHTML = `<div class="card"><h2>Booking Requests</h2><div class="list">${pendingBookingRequests().length ? pendingBookingRequests().map(r=>bookingRequestRow(r)).join("") : `<div class="empty">No pending requests.</div>`}</div></div><div class="card"><h2>Schedule</h2><div class="list">${state.appointments.length ? state.appointments.map(a=>appointmentRow(a,true)).join("") : `<div class="empty">No appointments scheduled.</div>`}</div><div class="btn-row"><button class="btn primary" onclick="openAddAppointment()">Add Appointment</button></div></div>`;
+    }
+    function renderProfile() {
+      const profile = state.userProfile || {};
+      const b = state.barber || {};
+      const roles = profile.roles || [];
+      const services = (b.services || "").split(",").map(s=>s.trim()).filter(Boolean);
+      const phoneDisplay = profile.phone ? escapeHtml(profile.phone) : "No phone added";
+
+      $("profile").innerHTML = `
+        <div class="card">
+          <h2>Account Settings</h2>
+          <p class="muted">Email: ${escapeHtml(profile.email || currentUser.email || "")}</p>
+          <p class="muted">Phone: ${phoneDisplay}</p>
+          <div class="tag-wrap">${roles.map(r=>`<span class="pill success">${r}</span>`).join("")}</div>
+          <div class="btn-row"><button class="btn secondary" id="editAccountBtn" data-action="edit-account" type="button">Edit Account Info</button></div>
+        </div>
+
+        ${roles.includes("barber") ? `<div class="card">
+          <h2>Barber Username</h2>
+          <p class="muted">This is what clients will search to find you.</p>
+          <div class="username-row">
+            <span class="pill">Handle</span>
+            <span class="username-box">${b.username ? "@" + escapeHtml(b.username) : "Not set"}</span>
+          </div>
+          <div class="btn-row">
+            <button class="btn primary" type="button" data-action="edit-username">Edit Username</button>
+          </div>
+        </div>` : ""}
+
+        <div class="card">
+          <h2>Active Mode</h2>
+          <p class="muted">Switch between account modes. This does not delete your data.</p>
+          <div class="btn-row">
+            ${roles.includes("barber") ? `<button class="btn ${activeMode()==="barber"?"primary":"secondary"}" onclick="switchMode('barber')">Barber Mode</button>` : ""}
+            ${roles.includes("client") ? `<button class="btn ${activeMode()==="client"?"primary":"secondary"}" onclick="switchMode('client')">Client Mode</button>` : ""}
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Permissions</h2>
+          <p class="muted">Add or remove account permissions for testing.</p>
+          <div class="btn-row">
+            <button class="btn secondary" onclick="togglePermission('barber')">${roles.includes("barber") ? "Remove Barber" : "Add Barber"}</button>
+            <button class="btn secondary" onclick="togglePermission('client')">${roles.includes("client") ? "Remove Client" : "Add Client"}</button>
+          </div>
+        </div>
+
+        ${roles.includes("barber") ? `<div class="card">
+          <div class="profile-hero">
+            <div class="avatar">${initials(b.name||profile.name||"BC")}</div>
+            <div>
+              <h2>${escapeHtml(b.name||profile.name||"Barber")}</h2>
+              <p class="muted">${escapeHtml(b.shopName||"Shop")}</p>
+            </div>
+          </div>
+          <br>
+          <p class="muted">${escapeHtml(b.location||"No location set")}</p>
+          <p class="muted">${escapeHtml(b.bio||"No bio set")}</p>
+          <div class="tag-wrap">${services.map(s=>`<span class="pill">${escapeHtml(s)}</span>`).join("")}</div>
+          <div class="btn-row"><button class="btn primary" onclick="openEditProfile()">Edit Barber Profile</button></div>
+        </div>` : ""}
+
+        <div class="card">
+          <h2>Session</h2>
+          <div class="btn-row"><button class="btn danger" onclick="logout()">Logout</button></div>
+        </div>`;
+    }
+
+
+    function openEditAccountModal() {
+      const profile = state.userProfile || {};
+      openModal("Edit Account Info", `
+        <label>Name</label>
+        <input id="accountName" value="${escapeAttr(profile.name || "")}" />
+
+        <label>Phone <span class="muted" style="text-transform:none;letter-spacing:0;">Recommended, optional</span></label>
+        <input id="accountPhone" type="tel" value="${escapeAttr(profile.phone || "")}" placeholder="Phone number" />
+
+        <p class="muted" style="margin-top:10px;">Phone number helps barbers and clients match profiles later, but it is not required.</p>
+
+        <div class="btn-row"><button class="btn primary" id="saveAccountInfoBtn" type="button">Save Account</button></div>
+      `);
+
+      const saveBtn = document.getElementById("saveAccountInfoBtn");
+      if (saveBtn) saveBtn.addEventListener("click", saveAccountInfo);
+    }
+
+    async function saveAccountInfo() {
+      try {
+        const name = val("accountName") || state.userProfile.name || "New User";
+        const phone = val("accountPhone");
+        await setDoc(doc(db, "users", currentUser.uid), { name, phone, updatedAt: serverTimestamp() }, { merge: true });
+
+        if (state.userProfile?.roles?.includes("barber")) {
+          await setDoc(doc(db, "barbers", currentUser.uid), { name, updatedAt: serverTimestamp() }, { merge: true });
+        }
+
+        closeModal();
+      } catch (err) {
+        alert("Account update failed: " + err.message);
+      }
+    }
+
+    window.openEditAccount = openEditAccountModal;
+    window.saveAccountInfo = saveAccountInfo;
+
+
+    window.switchMode = async function(mode) { if (!state.userProfile.roles.includes(mode)) return alert("You don't have that permission yet."); await updateDoc(doc(db, "users", currentUser.uid), { activeMode: mode }); setPage("dashboard"); }
+    window.togglePermission = async function(role) {
+      let roles = [...(state.userProfile.roles || [])];
+      if (roles.includes(role)) { if (roles.length === 1) return alert("You need at least one permission."); if (!confirm(`Remove ${role} permission? Your data won't be deleted, but that mode will be hidden.`)) return; roles = roles.filter(r => r !== role); } else { roles.push(role); }
+      const active = roles.includes(state.userProfile.activeMode) ? state.userProfile.activeMode : roles[0];
+      await setDoc(doc(db, "users", currentUser.uid), { roles, activeMode: active }, { merge:true });
+      if (roles.includes("barber")) await ensureModeData();
+    }
+
+    function clientById(id) { return state.clients.find(c=>c.id===id); }
+    function cutsForClient(id) { return state.cuts.filter(c=>c.clientId===id); }
+    function appointmentsForClient(id) { return state.appointments.filter(a=>a.clientId===id); }
+    
+    function pendingBookingRequests() {
+      return (state.bookingRequests || []).filter(r => (r.status || "pending") === "pending");
+    }
+
+    function bookingRequestRow(r) {
+      return `<div class="row">
+        <span class="row-main">
+          <strong>${escapeHtml(r.clientName || "Client")}</strong>
+          <span class="muted">${formatDate(r.date)} at ${escapeHtml(formatTime(r.time))} · ${escapeHtml(r.service || "Service")}</span>
+          <span class="small">${escapeHtml(r.phone || "No phone")}${r.email ? " · " + escapeHtml(r.email) : ""}</span>
+          ${r.notes ? `<span class="small">${escapeHtml(r.notes)}</span>` : ""}
+          <span class="btn-row">
+            <button class="btn secondary" onclick="acceptBookingRequest('${r.id}')">Accept</button>
+            <button class="btn danger" onclick="declineBookingRequest('${r.id}')">Decline</button>
+          </span>
+        </span>
+        <span class="pill warning">pending</span>
+      </div>`;
+    }
+
+    function appointmentRow(a, actions=false) { const c = clientById(a.clientId); const statusClass = a.status==="completed" ? "success" : a.status==="cancelled" ? "danger" : "warning"; return `<div class="row"><span class="row-main"><strong>${escapeHtml(c?.name || "Unknown Client")}</strong><span class="muted">${formatDate(a.date)} at ${escapeHtml(formatTime(a.time))} · ${escapeHtml(a.service||"Service")}</span>${a.notes ? `<span class="small">${escapeHtml(a.notes)}</span>` : ""}${actions ? `<span class="btn-row"><button class="btn secondary" onclick="markAppointment('${a.id}','completed')">Complete</button><button class="btn danger" onclick="markAppointment('${a.id}','cancelled')">Cancel</button></span>` : ""}</span><span class="pill ${statusClass}">${escapeHtml(a.status||"scheduled")}</span></div>`; }
+    function cutRow(c) { const client = clientById(c.clientId); return `<button class="row" onclick="viewClient('${c.clientId}'); setPage('clients')"><span class="row-main"><strong>${escapeHtml(client?.name || "Unknown Client")}</strong><span class="muted">${formatDate(c.date)} · ${escapeHtml(c.style||"Cut")}</span></span><span class="pill">${c.photos?.length||0} photos</span></button>`; }
+    function cutDetail(c) { return `<div class="card" style="background:#0b0b0b;"><h3>${escapeHtml(c.style||"Haircut")}</h3><p class="muted">${formatDate(c.date)}</p><p class="muted">${escapeHtml(c.notes||"No cut notes.")}</p><div class="tag-wrap">${(c.tags||"").split(",").filter(Boolean).map(t=>`<span class="pill">${escapeHtml(t.trim())}</span>`).join("")}</div><div class="photo-grid">${(c.photos||[]).map(src=>`<div class="photo-box"><img src="${src}" alt="Cut photo"></div>`).join("") || `<div class="photo-box">No photos</div>`}</div><div class="btn-row"><button class="btn danger" onclick="deleteCut('${c.id}')">Delete Cut</button></div></div>`; }
+
+    window.viewClient = function(id) { selectedClientId=id; activePage="clients"; $("pageTitle").textContent="Client Profile"; document.querySelectorAll(".page").forEach(p=>p.classList.remove("active")); $("clients").classList.add("active"); document.querySelectorAll(".nav-btn").forEach(btn=>btn.classList.toggle("active", btn.dataset.page==="clients")); renderClients(); }
+    window.backToClients = function() { selectedClientId=null; $("pageTitle").textContent="Clients"; renderClients(); }
+    window.closeModal = function() { $("modal").classList.remove("active"); $("modalBody").innerHTML=""; }
+    $("modal").addEventListener("click", e => { if (e.target.id==="modal") closeModal(); });
+    function openModal(title, body) { $("modalTitle").textContent=title; $("modalBody").innerHTML=body; $("modal").classList.add("active"); }
+
+    
+
+    function timeSlotOptions(selectedValue = "") {
+      const slots = [];
+      for (let hour = 6; hour <= 22; hour++) {
+        for (let minute of [0, 30]) {
+          const value = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+          const labelDate = new Date(`2000-01-01T${value}:00`);
+          const label = labelDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+          slots.push(`<option value="${value}" ${value === selectedValue ? "selected" : ""}>${label}</option>`);
+        }
+      }
+      return slots.join("");
+    }
+
+
+    async function getUnavailableTimesForBarber(barberId, date) {
+      if (!barberId || !date) return new Set();
+
+      const unavailable = new Set();
+
+      const apptSnap = await getDocs(query(
+        collection(db, "appointments"),
+        where("barberId", "==", barberId),
+        where("date", "==", date)
+      ));
+
+      apptSnap.docs.forEach(d => {
+        const a = d.data();
+        if ((a.status || "scheduled") !== "cancelled" && a.time) unavailable.add(a.time);
+      });
+
+      const requestSnap = await getDocs(query(
+        collection(db, "bookingRequests"),
+        where("barberId", "==", barberId),
+        where("date", "==", date)
+      ));
+
+      requestSnap.docs.forEach(d => {
+        const r = d.data();
+        const status = r.status || "pending";
+        if ((status === "pending" || status === "accepted") && r.time) unavailable.add(r.time);
+      });
+
+      return unavailable;
+    }
+
+    function timeSlotOptionsWithUnavailable(unavailableTimes = new Set(), selectedValue = "") {
+      const slots = [];
+      for (let hour = 6; hour <= 22; hour++) {
+        for (let minute of [0, 30]) {
+          const value = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+          const labelDate = new Date(`2000-01-01T${value}:00`);
+          const label = labelDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+          const disabled = unavailableTimes.has(value) && value !== selectedValue;
+          slots.push(`<option value="${value}" ${value === selectedValue ? "selected" : ""} ${disabled ? "disabled" : ""}>${label}${disabled ? " — unavailable" : ""}</option>`);
+        }
+      }
+      return slots.join("");
+    }
+
+    async function refreshRequestTimeSlots() {
+      const selected = state.userProfile?.selectedBarber;
+      const date = val("requestDate");
+      const timeSelect = document.getElementById("requestTime");
+      const note = document.getElementById("availabilityNote");
+
+      if (!selected?.id || !date || !timeSelect) return;
+
+      try {
+        if (note) note.textContent = "Checking availability...";
+        const unavailable = await getUnavailableTimesForBarber(selected.id, date);
+        const currentValue = timeSelect.value;
+        timeSelect.innerHTML = timeSlotOptionsWithUnavailable(unavailable, currentValue);
+
+        const availableCount = Array.from(timeSelect.options).filter(o => !o.disabled).length;
+        if (note) note.textContent = availableCount ? `${availableCount} time slots available.` : "No available time slots for this day.";
+      } catch (err) {
+        if (note) note.textContent = "Could not check availability.";
+        console.error(err);
+      }
+    }
+
+
+
+    async function hasDuplicatePendingRequest(barberId, clientUserId, date, time) {
+      const snap = await getDocs(query(
+        collection(db, "bookingRequests"),
+        where("barberId", "==", barberId),
+        where("clientUserId", "==", clientUserId),
+        where("date", "==", date),
+        where("time", "==", time)
+      ));
+
+      return snap.docs.some(d => {
+        const status = d.data().status || "pending";
+        return status === "pending" || status === "accepted";
+      });
+    }
+
+    function setSendRequestLoading(isLoading) {
+      const btn = document.getElementById("sendBookingRequestBtn");
+      if (!btn) return;
+      btn.disabled = isLoading;
+      btn.textContent = isLoading ? "Sending..." : "Send Request";
+      btn.style.opacity = isLoading ? "0.65" : "1";
+    }
+
+
+    function formatTime(time = "") {
+      if (!time) return "No time";
+      try {
+        const d = new Date(`2000-01-01T${time}:00`);
+        return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      } catch {
+        return time;
+      }
+    }
+
+    function statusPill(status = "pending") {
+      const normalized = status || "pending";
+      const cls = normalized === "accepted" ? "success" : normalized === "declined" ? "danger" : "warning";
+      return `<span class="pill ${cls}">${escapeHtml(normalized)}</span>`;
+    }
+
+    function clientBookingRequestRow(r) {
+      return `<div class="row">
+        <span class="row-main">
+          <strong>${escapeHtml(r.service || "Booking Request")}</strong>
+          <span class="muted">${formatDate(r.date)} at ${escapeHtml(formatTime(r.time))}</span>
+          <span class="small">@${escapeHtml(r.barberUsername || "")} · ${escapeHtml(r.barberName || "Barber")}</span>
+          ${r.notes ? `<span class="small">${escapeHtml(r.notes)}</span>` : ""}
+        </span>
+        ${statusPill(r.status)}
+      </div>`;
+    }
+
+
+    window.openRequestBooking = function() {
+      const selected = state.userProfile?.selectedBarber;
+      if (!selected?.id) return alert("Select a barber first.");
+
+      openModal("Request Booking", `
+        <p class="muted">Request an appointment with <strong>${escapeHtml(selected.name || "your barber")}</strong>.</p>
+
+        <label>Name</label>
+        <input id="requestName" value="${escapeAttr(state.userProfile?.name || "")}" placeholder="Your name" />
+
+        <label>Phone</label>
+        <input id="requestPhone" type="tel" value="${escapeAttr(state.userProfile?.phone || "")}" placeholder="Phone number" />
+
+        <label>Email</label>
+        <input id="requestEmail" type="email" value="${escapeAttr(currentUser?.email || "")}" placeholder="Email" />
+
+        <label>Service</label>
+        <select id="requestService">
+          <option value="Haircut">Haircut</option>
+          <option value="Beard trim">Beard trim</option>
+          <option value="Haircut + beard trim">Haircut + beard trim</option>
+        </select>
+
+        <label>Date</label>
+        <input id="requestDate" type="date" value="${getToday()}" />
+
+        <label>Time</label>
+        <select id="requestTime">${timeSlotOptions()}</select>
+        <p id="availabilityNote" class="muted" style="margin-top:8px;">Checking availability...</p>
+
+        <label>Notes</label>
+        <textarea id="requestNotes" placeholder="Anything you want your barber to know"></textarea>
+
+        <div class="btn-row"><button class="btn primary" id="sendBookingRequestBtn" type="button" onclick="submitBookingRequest()">Send Request</button></div>
+      `);
+
+      document.getElementById("requestDate")?.addEventListener("change", refreshRequestTimeSlots);
+      refreshRequestTimeSlots();
+    }
+
+    window.submitBookingRequest = async function() {
+      const selected = state.userProfile?.selectedBarber;
+      if (!selected?.id) return alert("Select a barber first.");
+
+      const clientName = val("requestName");
+      const phone = val("requestPhone");
+      const requestDate = val("requestDate");
+      const requestTime = val("requestTime");
+      const service = val("requestService");
+
+      if (!clientName) return alert("Add your name first.");
+      if (!requestDate) return alert("Pick a date.");
+      if (!requestTime) return alert("Pick a time.");
+      if (!service) return alert("Pick a service.");
+
+      setSendRequestLoading(true);
+
+      try {
+        const duplicate = await hasDuplicatePendingRequest(selected.id, currentUser.uid, requestDate, requestTime);
+        if (duplicate) {
+          alert("You already have a request for that date and time.");
+          setSendRequestLoading(false);
+          return;
+        }
+
+        const unavailable = await getUnavailableTimesForBarber(selected.id, requestDate);
+        if (unavailable.has(requestTime)) {
+          alert("That time was just taken. Pick another available time.");
+          await refreshRequestTimeSlots();
+          setSendRequestLoading(false);
+          return;
+        }
+
+        await addDoc(collection(db, "bookingRequests"), {
+          barberId: selected.id,
+          barberUsername: selected.username || "",
+          barberName: selected.name || "",
+          clientUserId: currentUser.uid,
+          clientName,
+          phone,
+          email: val("requestEmail"),
+          service,
+          date: requestDate,
+          time: requestTime,
+          notes: val("requestNotes"),
+          status: "pending",
+          createdAt: serverTimestamp()
+        });
+
+        closeModal();
+        alert("Booking request sent.");
+      } catch (err) {
+        alert("Booking request failed: " + err.message);
+        setSendRequestLoading(false);
+      }
+    }
+
+
+    window.acceptBookingRequest = async function(requestId) {
+      const request = (state.bookingRequests || []).find(r => r.id === requestId);
+      if (!request) return alert("Request not found.");
+
+      try {
+        let clientId = "";
+
+        const existingClientQuery = query(
+          collection(db, "clients"),
+          where("barberId", "==", currentUser.uid),
+          where("phone", "==", request.phone || "__NO_PHONE__"),
+          limit(1)
+        );
+
+        const existingClientSnap = request.phone ? await getDocs(existingClientQuery) : { empty: true, docs: [] };
+
+        if (!existingClientSnap.empty) {
+          clientId = existingClientSnap.docs[0].id;
+        } else {
+          const newClient = await addDoc(collection(db, "clients"), {
+            barberId: currentUser.uid,
+            linkedUserId: request.clientUserId || "",
+            name: request.clientName || "Client",
+            phone: request.phone || "",
+            preferences: "",
+            notes: "Created from booking request.",
+            createdAt: serverTimestamp()
+          });
+          clientId = newClient.id;
+        }
+
+        await addDoc(collection(db, "appointments"), {
+          barberId: currentUser.uid,
+          clientId,
+          date: request.date,
+          time: request.time,
+          service: request.service,
+          notes: request.notes || "",
+          status: "scheduled",
+          source: "bookingRequest",
+          requestId,
+          createdAt: serverTimestamp()
+        });
+
+        await updateDoc(doc(db, "bookingRequests", requestId), {
+          status: "accepted",
+          acceptedAt: serverTimestamp()
+        });
+
+        alert("Booking accepted and appointment created.");
+      } catch (err) {
+        alert("Accept failed: " + err.message);
+      }
+    }
+
+    window.declineBookingRequest = async function(requestId) {
+      if (!confirm("Decline this booking request?")) return;
+
+      try {
+        await updateDoc(doc(db, "bookingRequests", requestId), {
+          status: "declined",
+          declinedAt: serverTimestamp()
+        });
+      } catch (err) {
+        alert("Decline failed: " + err.message);
+      }
+    }
+
+
+    window.openAddClient = function() { openModal("Add Client", `<label>Name</label><input id="clientName" placeholder="Client name" /><label>Phone</label><input id="clientPhone" placeholder="Phone number" /><label>Haircut Preferences</label><textarea id="clientPreferences" placeholder="Example: mid fade, textured top"></textarea><label>Private Notes</label><textarea id="clientNotes" placeholder="Anything useful to remember"></textarea><div class="btn-row"><button class="btn primary" onclick="addClient()">Save Client</button></div>`); }
+    window.addClient = async function() { const name=val("clientName"); if(!name) return alert("Add a client name first."); try { await addDoc(collection(db,"clients"), { barberId:currentUser.uid, name, phone:val("clientPhone"), preferences:val("clientPreferences"), notes:val("clientNotes"), createdAt:serverTimestamp() }); closeModal(); } catch(err) { alert("Client save failed: " + err.message); } }
+    window.openAddCut = function(clientId="") { const selected = clientId || selectedClientId || ""; openModal("Add Cut", `<label>Client</label><select id="cutClient">${state.clients.map(c=>`<option value="${c.id}" ${c.id===selected?"selected":""}>${escapeHtml(c.name)}</option>`).join("")}</select><label>Date</label><input id="cutDate" type="date" value="${getToday()}" /><label>Style</label><input id="cutStyle" placeholder="Example: Mid fade, burst fade, taper" /><label>Tags</label><input id="cutTags" placeholder="mid fade, textured top, beard trim" /><label>Notes</label><textarea id="cutNotes" placeholder="What guard, shape, blend notes, neckline, etc."></textarea><label>Photos</label><input id="cutPhotos" type="file" accept="image/*" multiple /><div class="btn-row"><button class="btn primary" onclick="addCut()">Save Cut</button></div>`); }
+    window.addCut = async function() { const clientId=val("cutClient"); if(!clientId) return alert("Pick a client first."); try { const files=Array.from($("cutPhotos").files||[]).slice(0,6); const photos=[]; for (const file of files) { const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"-"); const path=`barbers/${currentUser.uid}/clients/${clientId}/cuts/${Date.now()}-${safeName}`; const storageRef=ref(storage,path); await uploadBytes(storageRef,file); photos.push(await getDownloadURL(storageRef)); } await addDoc(collection(db,"cuts"), { barberId:currentUser.uid, clientId, date:val("cutDate")||getToday(), style:val("cutStyle"), tags:val("cutTags"), notes:val("cutNotes"), photos, createdAt:serverTimestamp() }); closeModal(); } catch(err) { alert("Cut save failed: " + err.message); } }
+    window.openAddAppointment = function(clientId="") { const selected = clientId || selectedClientId || ""; openModal("Add Appointment", `<label>Client</label><select id="apptClient">${state.clients.map(c=>`<option value="${c.id}" ${c.id===selected?"selected":""}>${escapeHtml(c.name)}</option>`).join("")}</select><label>Date</label><input id="apptDate" type="date" value="${getToday()}" /><label>Time</label><select id="apptTime">${timeSlotOptions()}</select><label>Service</label><input id="apptService" placeholder="Fade, taper, beard trim, etc." /><label>Notes</label><textarea id="apptNotes" placeholder="Appointment notes"></textarea><div class="btn-row"><button class="btn primary" onclick="addAppointment()">Save Appointment</button></div>`); }
+    window.addAppointment = async function() { const clientId=val("apptClient"); if(!clientId) return alert("Pick a client."); try { await addDoc(collection(db,"appointments"), { barberId:currentUser.uid, clientId, date:val("apptDate")||getToday(), time:val("apptTime")||"09:00", service:val("apptService"), notes:val("apptNotes"), status:"scheduled", createdAt:serverTimestamp() }); closeModal(); } catch(err) { alert("Appointment save failed: " + err.message); } }
+
+    window.markAppointment = async function(id,status) { await updateDoc(doc(db,"appointments",id), {status}); }
+    window.openEditProfile = function() { const b=state.barber||{}; openModal("Edit Barber Profile", `<label>Name</label><input id="barberName" value="${escapeAttr(b.name||"")}" /><label>Shop Name</label><input id="shopName" value="${escapeAttr(b.shopName||"")}" /><label>Location</label><input id="barberLocation" value="${escapeAttr(b.location||"")}" /><label>Bio</label><textarea id="barberBio">${escapeHtml(b.bio||"")}</textarea><label>Services</label><input id="barberServices" value="${escapeAttr(b.services||"")}" /><div class="btn-row"><button class="btn primary" onclick="saveProfile()">Save Profile</button></div>`); }
+    window.saveProfile = async function() { await setDoc(doc(db,"barbers",currentUser.uid), { uid:currentUser.uid, email:currentUser.email, name:val("barberName"), shopName:val("shopName"), location:val("barberLocation"), bio:val("barberBio"), services:val("barberServices"), updatedAt:serverTimestamp() }, {merge:true}); await setDoc(doc(db,"users",currentUser.uid), { name:val("barberName") }, {merge:true}); closeModal(); }
+    window.deleteClient = async function(id) { if(!confirm("Delete this client? Linked cuts and appointments will stay for now.")) return; await deleteDoc(doc(db,"clients",id)); selectedClientId=null; }
+    window.deleteCut = async function(id) { if(!confirm("Delete this cut?")) return; await deleteDoc(doc(db,"cuts",id)); }
+    window.logout = async function() { await signOut(auth); }
+
+
+    window.openEditUsername = function() {
+      const b = state.barber || {};
+      openModal("Edit Barber Username", `
+        <label>Username</label>
+        <input id="barberUsernameInput" value="${escapeAttr(b.username || "")}" placeholder="devdoescuts" />
+        <p class="muted" style="margin-top:10px;">Use letters, numbers, underscores, or dots. No spaces. Clients will search this like @devdoescuts.</p>
+        <div id="usernameStatus" class="muted" style="margin-top:10px;"></div>
+        <div class="btn-row">
+          <button class="btn secondary" onclick="checkUsernameAvailability()">Check</button>
+          <button class="btn primary" onclick="saveUsername()">Save Username</button>
+        </div>
+      `);
+    }
+
+
+    function openEditUsernameModal() {
+      const b = state.barber || {};
+      openModal("Edit Barber Username", `
+        <label>Username</label>
+        <input id="barberUsernameInput" value="${escapeAttr(b.username || "")}" placeholder="devdoescuts" />
+        <p class="muted" style="margin-top:10px;">Use letters, numbers, underscores, or dots. No spaces. Clients will search this like @devdoescuts.</p>
+        <div id="usernameStatus" class="muted" style="margin-top:10px;"></div>
+        <div class="btn-row">
+          <button class="btn secondary" type="button" id="checkUsernameBtn">Check</button>
+          <button class="btn primary" type="button" id="saveUsernameBtn">Save Username</button>
+        </div>
+      `);
+
+      document.getElementById("checkUsernameBtn")?.addEventListener("click", checkUsernameAvailability);
+      document.getElementById("saveUsernameBtn")?.addEventListener("click", saveUsername);
+    }
+
+    window.openEditUsername = openEditUsernameModal;
+
+
+    function cleanUsername(raw) {
+      return String(raw || "")
+        .trim()
+        .replace(/^@+/, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9._]/g, "");
+    }
+
+    window.checkUsernameAvailability = async function() {
+      const username = cleanUsername(val("barberUsernameInput"));
+      const status = document.getElementById("usernameStatus");
+      if (!username || username.length < 3) {
+        status.textContent = "Username must be at least 3 characters.";
+        return false;
+      }
+
+      const taken = await isUsernameTaken(username);
+      if (taken && state.barber?.usernameLower !== username) {
+        status.textContent = "That username is already taken.";
+        return false;
+      }
+
+      status.textContent = "Username is available.";
+      return true;
+    }
+
+    async function isUsernameTaken(username) {
+      const q = query(collection(db, "barbers"), where("usernameLower", "==", username), limit(1));
+      const snap = await getDocs(q);
+      if (snap.empty) return false;
+      return snap.docs.some(d => d.id !== currentUser.uid);
+    }
+
+    window.saveUsername = async function() {
+      try {
+        const username = cleanUsername(val("barberUsernameInput"));
+        if (!username || username.length < 3) return alert("Username must be at least 3 characters.");
+
+        const taken = await isUsernameTaken(username);
+        if (taken && state.barber?.usernameLower !== username) {
+          return alert("That username is already taken.");
+        }
+
+        await setDoc(doc(db, "barbers", currentUser.uid), {
+          username,
+          usernameLower: username,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        closeModal();
+      } catch (err) {
+        alert("Username save failed: " + err.message);
+      }
+    }
+
+    window.openFindBarber = function() {
+      setPage("clients");
+      setTimeout(() => document.getElementById("barberSearchInput")?.focus(), 100);
+    }
+
+    window.searchBarberUsername = async function() {
+      const input = document.getElementById("barberSearchInput");
+      const results = document.getElementById("barberSearchResults");
+      const username = cleanUsername(input?.value || "");
+
+      if (!username) {
+        results.innerHTML = `<p class="error">Enter a barber username first.</p>`;
+        return;
+      }
+
+      try {
+        results.innerHTML = `<p class="muted">Searching...</p>`;
+        const q = query(collection(db, "barbers"), where("usernameLower", "==", username), limit(1));
+        const snap = await getDocs(q);
+
+        if (snap.empty) {
+          results.innerHTML = `<div class="empty">No barber found for @${escapeHtml(username)}</div>`;
+          return;
+        }
+
+        const docSnap = snap.docs[0];
+        const barber = { id: docSnap.id, ...docSnap.data() };
+
+        results.innerHTML = `
+          <div class="search-result">
+            <h3>${escapeHtml(barber.name || "Barber")}</h3>
+            <p class="muted">${escapeHtml(barber.shopName || "")}</p>
+            <p class="muted">@${escapeHtml(barber.username || username)}</p>
+            <div class="btn-row">
+              <button class="btn primary" onclick="selectBarber('${docSnap.id}', '${escapeAttr(barber.username || username)}', '${escapeAttr(barber.name || "Barber")}', '${escapeAttr(barber.shopName || "")}')">Select This Barber</button>
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        results.innerHTML = `<p class="error">Search failed: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    window.selectBarber = async function(barberId, username, name, shopName) {
+      try {
+        await setDoc(doc(db, "users", currentUser.uid), {
+          selectedBarberId: barberId,
+          selectedBarber: { id: barberId, username, name, shopName },
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        alert(`Selected @${username} as your barber.`);
+        setPage("dashboard");
+      } catch (err) {
+        alert("Could not select barber: " + err.message);
+      }
+    }
+
+
+    function showRuntimeError(message) { console.error(message); $("syncStatus").textContent="Sync Error"; alert(message); }
+    function val(id) { return $(id)?.value.trim() || ""; }
+    function getToday() { return new Date().toISOString().split("T")[0]; }
+    function formatDate(dateStr) { if(!dateStr) return "No date"; const d=new Date(dateStr+"T00:00:00"); return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); }
+    function initials(name) { return (name||"BC").split(" ").map(n=>n[0]).slice(0,2).join("").toUpperCase(); }
+    function escapeHtml(str="") { return String(str).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
+    function escapeAttr(str="") { return escapeHtml(str).replaceAll("\n"," "); }
+    function cleanFirebaseError(msg) { return msg.replace("Firebase: ","").replace(/\s*\(auth\/.+?\)\.?/,""); }
+  </script>
+</body>
+</html>
