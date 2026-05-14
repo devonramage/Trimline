@@ -1,19 +1,15 @@
-# Trimline Profile Layout Stable v1
+# Trimline Most Stable Rollback
 
-Stable profile layout update only.
+This restores the most stable working version before the profile layout changes broke buttons.
 
-Added:
-- Instagram-style profile header
-- Larger avatar with initials
-- Name / username / shop / location / bio
-- Stats row
-- Services section for barber mode
-- Client profile layout
-- Profile menu
+Use this now:
+- Upload index.html and README.md to GitHub
+- Commit changes
+- Let Vercel redeploy
 
-Not included yet:
-- Profile picture upload
-- Banner image upload
-- Advanced portfolio changes
-
-This version avoids Firebase Storage and keeps booking/auth logic untouched.
+Stable point:
+- Auth works
+- Booking flow works
+- Cancel confirmation works
+- Safe nav labels work
+- No broken profile layout changes
