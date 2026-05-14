@@ -70,6 +70,11 @@
     .portfolio-item img{width:100%;height:100%;object-fit:cover;display:block}
     .portfolio-empty{padding:18px;border:1px dashed var(--border);border-radius:16px;color:#aaa;text-align:center}
     .portfolio-badge{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.72);padding:5px 9px;border-radius:999px;font-size:11px;font-weight:700}
+  
+    .profile-top-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+    .icon-btn{width:44px;height:44px;border-radius:14px;border:1px solid var(--border);background:#111;color:#fff;font-size:18px;font-weight:900}
+    .menu-list{display:grid;gap:10px;margin-top:12px}
+    .menu-item{width:100%;text-align:left;border:1px solid var(--border);background:#101010;color:#fff;border-radius:15px;padding:14px 15px;font-weight:800}
   </style>
 </head>
 <body>
@@ -131,12 +136,7 @@
       <section id="schedule" class="page"></section>
       <section id="profile" class="page"></section>
     </main>
-    <nav class="bottom-nav">
-      <button class="nav-btn active" data-page="dashboard"><span class="nav-icon">⌂</span><span>Home</span></button>
-      <button class="nav-btn" data-page="clients"><span class="nav-icon">✂</span><span>Clients</span></button>
-      <button class="nav-btn" data-page="schedule"><span class="nav-icon">◷</span><span>Schedule</span></button>
-      <button class="nav-btn" data-page="profile"><span class="nav-icon">◎</span><span>Settings</span></button>
-    </nav>
+    <nav class="bottom-nav" id="bottomNav"></nav>
   </div>
 
   <div id="modal" class="modal"><div class="modal-card"><div class="modal-head"><h2 id="modalTitle">Modal</h2><button class="x-btn" onclick="closeModal()">×</button></div><div id="modalBody"></div></div></div>
@@ -258,7 +258,10 @@
       }
     });
 
-function setPage(page) { activePage = page; document.querySelectorAll(".page").forEach(p => p.classList.remove("active")); $(page).classList.add("active"); document.querySelectorAll(".nav-btn").forEach(btn => btn.classList.toggle("active", btn.dataset.page === page)); const titles = {dashboard:"Dashboard",clients:"Clients",schedule:"Schedule",profile:"Settings"}; $("pageTitle").textContent = selectedClientId ? "Client Profile" : titles[page]; render(); }
+function setPage(page) {
+      activePage = page === "settings" ? "profile" : page;
+      render();
+    }; $("pageTitle").textContent = selectedClientId ? "Client Profile" : titles[page]; render(); }
     function render() { if (!currentUser || !state.userProfile) return; updateModeUI(); renderDashboard(); renderClients(); renderSchedule(); renderProfile(); }
     function activeMode() { return state.userProfile?.activeMode || "barber"; }
     function isBarberMode() { return activeMode() === "barber" && state.userProfile?.roles?.includes("barber"); }
@@ -328,6 +331,17 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
       const clientCuts = cutsForClient(client.id), clientAppts = appointmentsForClient(client.id);
       $("clients").innerHTML = `<button class="btn secondary" onclick="backToClients()">← Back to Clients</button><div class="card" style="margin-top:12px;"><div class="profile-hero"><div class="avatar">${initials(client.name)}</div><div><h2>${escapeHtml(client.name)}</h2><p class="muted">${escapeHtml(client.phone||"No phone")}</p></div></div><div class="tag-wrap"><span class="pill">${clientCuts.length} saved cuts</span><span class="pill">${clientAppts.length} appointments</span></div><div class="detail-actions"><button class="btn primary" onclick="openAddCut('${client.id}')">Add Cut</button><button class="btn secondary" onclick="openAddAppointment('${client.id}')">Book</button></div></div><div class="card"><h2>Preferences</h2><p class="muted">${escapeHtml(client.preferences||"No preferences saved.")}</p><br><h3>Notes</h3><p class="muted">${escapeHtml(client.notes||"No notes saved.")}</p></div><div class="card"><h2>Cut History</h2><div class="list">${clientCuts.length ? clientCuts.map(c=>cutDetail(c)).join("") : `<div class="empty">No cuts linked to this client yet.</div>`}</div></div><div class="card"><h2>Appointments</h2><div class="list">${clientAppts.length ? clientAppts.map(a=>appointmentRow(a)).join("") : `<div class="empty">No appointments for this client.</div>`}</div></div><button class="btn danger" onclick="deleteClient('${client.id}')">Delete Client</button>`;
     }
+
+    function renderSaved() {
+      $("saved").innerHTML = `
+        <div class="card">
+          <h2>Saved Barbers</h2>
+          <div class="empty">Saved barbers and favorites are coming soon.</div>
+        </div>
+      `;
+    }
+
+
     function renderSchedule() {
       if (!isBarberMode()) { 
         const selected = state.userProfile?.selectedBarber || null;
@@ -1219,6 +1233,18 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     window.declineBookingRequest = window.openDeclineRequestConfirm;
 
     
+
+    window.openProfileMenu = function() {
+      openModal("Profile Menu", `
+        <div class="menu-list">
+          <button class="menu-item" type="button" onclick="closeModal(); openEditProfile();">Edit Profile</button>
+          <button class="menu-item" type="button" onclick="closeModal(); openEditUsername();">Username</button>
+          <button class="menu-item" type="button" onclick="logout()">Logout</button>
+        </div>
+      `);
+    }
+
+
     function showRuntimeError(message) { console.error(message); $("syncStatus").textContent="Sync Error"; alert(message); }
     function val(id) { return $(id)?.value.trim() || ""; }
     function getToday() { return new Date().toISOString().split("T")[0]; }
