@@ -1,21 +1,15 @@
-# Trimline Safe Nav v3
+# Trimline Profile Layout + Pictures v1
 
-Targeted fix based on the actual current index.html structure.
+Added:
+- Instagram-style Profile layout
+- Barber and Client profile header
+- Profile photo upload
+- Photo saved to Firebase Storage
+- Photo URL saved to users/{uid}
+- Barber photo also saved to barbers/{uid}
+- Fallback initials avatar if no photo
+- Stats cards for barber/client modes
+- Profile Photo button in profile actions and menu
 
-Changes:
-- Static bottom nav "Settings" now says "Profile"
-- Barber nav labels:
-  - Home
-  - Clients
-  - Schedule
-  - Profile
-- Client nav labels:
-  - Discover
-  - Saved
-  - Appointments
-  - Profile
-- Page title changes based on mode
-- Profile page gets a Menu button
-- Version marker: TRIMLINE_SAFE_NAV_V3
-
-Upload index.html and README.md to GitHub, commit, then let Vercel redeploy.
+No Firestore rule changes needed.
+Storage rules must allow signed-in users to upload files.

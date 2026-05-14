@@ -70,8 +70,25 @@
     .portfolio-item img{width:100%;height:100%;object-fit:cover;display:block}
     .portfolio-empty{padding:18px;border:1px dashed var(--border);border-radius:16px;color:#aaa;text-align:center}
     .portfolio-badge{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.72);padding:5px 9px;border-radius:999px;font-size:11px;font-weight:700}
+  
+    .ig-profile-header{border:1px solid var(--border);background:rgba(17,17,17,.92);border-radius:22px;padding:16px;margin-bottom:12px}
+    .ig-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+    .ig-profile-main{display:flex;align-items:center;gap:16px}
+    .ig-avatar{width:86px;height:86px;border-radius:50%;background:#fff;color:#000;display:grid;place-items:center;font-size:28px;font-weight:950;overflow:hidden;border:2px solid #333;flex:0 0 auto}
+    .ig-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+    .ig-meta{flex:1;min-width:0}
+    .ig-name{font-size:22px;font-weight:950;letter-spacing:-.04em}
+    .ig-handle{color:var(--muted);font-size:13px;margin-top:2px}
+    .ig-bio{margin-top:12px;color:#ddd;font-size:14px;line-height:1.45}
+    .ig-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+    .ig-stat{text-align:center;border:1px solid var(--border);background:#0b0b0b;border-radius:15px;padding:10px 6px}
+    .ig-stat strong{display:block;font-size:18px}
+    .ig-stat span{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+    .ig-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+    .profile-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 0 10px}
   </style>
 <meta name="trimline-version" content="TRIMLINE_SAFE_NAV_V3">
+<meta name="trimline-version" content="TRIMLINE_PROFILE_PICTURES_V1">
 </head>
 <body>
   <div id="loginScreen" class="auth-screen">
@@ -380,37 +397,95 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
       }
       $("schedule").innerHTML = `<div class="card"><h2>Booking Requests</h2><div class="btn-row"><button class="btn secondary" type="button" onclick="clearOldBookingRequests()">Clear Old Requests</button></div><div class="list">${pendingBookingRequests().length ? pendingBookingRequests().map(r=>bookingRequestRow(r)).join("") : `<div class="empty">No pending requests.</div>`}</div></div><div class="card"><h2>Schedule</h2><div class="list">${state.appointments.filter(a => (a.status || "scheduled") !== "cancelled").length ? state.appointments.filter(a => (a.status || "scheduled") !== "cancelled").map(a=>appointmentRow(a,true)).join("") : `<div class="empty">No appointments scheduled.</div>`}</div><div class="btn-row"><button class="btn primary" onclick="openAddAppointment()">Add Appointment</button></div></div>`;
     }
+
+    function profileAvatarMarkup(profile = {}, barber = {}) {
+      const photoURL = profile.photoURL || barber.photoURL || "";
+      const displayName = barber.name || profile.name || currentUser?.email || "User";
+      if (photoURL) return `<div class="ig-avatar"><img src="${escapeAttr(photoURL)}" alt="Profile photo"></div>`;
+      return `<div class="ig-avatar">${initials(displayName)}</div>`;
+    }
+
+    function currentProfileDisplay() {
+      const profile = state.userProfile || {};
+      const barber = state.barber || {};
+      return {
+        name: isBarberMode() ? (barber.name || profile.name || "Barber") : (profile.name || "Client"),
+        handle: isBarberMode() ? (barber.username ? "@" + barber.username : "@username not set") : "Client profile",
+        subtitle: isBarberMode() ? (barber.shopName || "Independent Barber") : (profile.selectedBarber?.username ? "Barber: @" + profile.selectedBarber.username : "No barber selected"),
+        bio: isBarberMode() ? (barber.bio || "Add a bio so clients know your style, location, and specialties.") : "Your client profile keeps your appointments, saved barbers, and haircut history together.",
+        location: isBarberMode() ? (barber.location || "Location not set") : "",
+        services: isBarberMode() ? (barber.services || "") : ""
+      };
+    }
+
+
     function renderProfile() {
       const profile = state.userProfile || {};
       const b = state.barber || {};
       const roles = profile.roles || [];
       const services = (b.services || "").split(",").map(s=>s.trim()).filter(Boolean);
+      const display = currentProfileDisplay();
       const phoneDisplay = profile.phone ? escapeHtml(profile.phone) : "No phone added";
+      const appointmentCount = state.appointments?.length || 0;
+      const cutCount = state.cuts?.length || 0;
+      const clientCount = state.clients?.length || 0;
 
       $("profile").innerHTML = `
-        <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><h2 style="margin:0;">Account Settings</h2><button class="btn secondary" type="button" onclick="openProfileMenu()" style="width:auto;padding:10px 14px;">Menu</button></div>
-          <p class="muted">Email: ${escapeHtml(profile.email || currentUser.email || "")}</p>
-          <p class="muted">Phone: ${phoneDisplay}</p>
-          <div class="tag-wrap">${roles.map(r=>`<span class="pill success">${r}</span>`).join("")}</div>
-          <div class="btn-row"><button class="btn secondary" id="editAccountBtn" data-action="edit-account" type="button">Edit Account Info</button></div>
+        <div class="ig-profile-header">
+          <div class="ig-top">
+            <div>
+              <div class="eyebrow">${isBarberMode() ? "Barber Profile" : "Client Profile"}</div>
+              <h2 style="margin:0;">Profile</h2>
+            </div>
+            <button class="btn secondary" type="button" onclick="openProfileMenu()" style="width:auto;padding:10px 14px;">Menu</button>
+          </div>
+
+          <div class="ig-profile-main">
+            ${profileAvatarMarkup(profile, b)}
+            <div class="ig-meta">
+              <div class="ig-name">${escapeHtml(display.name)}</div>
+              <div class="ig-handle">${escapeHtml(display.handle)}</div>
+              <p class="muted">${escapeHtml(display.subtitle)}</p>
+              ${display.location ? `<p class="muted">${escapeHtml(display.location)}</p>` : ""}
+            </div>
+          </div>
+
+          <p class="ig-bio">${escapeHtml(display.bio)}</p>
+
+          <div class="ig-stats">
+            ${isBarberMode() ? `
+              <div class="ig-stat"><strong>${clientCount}</strong><span>Clients</span></div>
+              <div class="ig-stat"><strong>${cutCount}</strong><span>Cuts</span></div>
+              <div class="ig-stat"><strong>${appointmentCount}</strong><span>Appts</span></div>
+            ` : `
+              <div class="ig-stat"><strong>${(state.bookingRequests || []).length}</strong><span>Requests</span></div>
+              <div class="ig-stat"><strong>${profile.selectedBarber ? 1 : 0}</strong><span>Barbers</span></div>
+              <div class="ig-stat"><strong>0</strong><span>Photos</span></div>
+            `}
+          </div>
+
+          <div class="ig-actions">
+            <button class="btn primary" type="button" onclick="${isBarberMode() ? "openEditProfile()" : "openEditAccount()"}">${isBarberMode() ? "Edit Barber Profile" : "Edit Profile"}</button>
+            <button class="btn secondary" type="button" onclick="openProfilePhotoModal()">Profile Photo</button>
+          </div>
         </div>
 
-        ${roles.includes("barber") ? `<div class="card">
-          <h2>Barber Username</h2>
-          <p class="muted">This is what clients will search to find you.</p>
-          <div class="username-row">
-            <span class="pill">Handle</span>
-            <span class="username-box">${b.username ? "@" + escapeHtml(b.username) : "Not set"}</span>
-          </div>
-          <div class="btn-row">
-            <button class="btn primary" type="button" data-action="edit-username">Edit Username</button>
-          </div>
+        ${isBarberMode() ? `<div class="card">
+          <h2>Services</h2>
+          <div class="tag-wrap">${services.length ? services.map(s=>`<span class="pill">${escapeHtml(s)}</span>`).join("") : `<span class="pill">No services listed</span>`}</div>
         </div>` : ""}
 
         <div class="card">
+          <h2>Account</h2>
+          <p class="muted">Email: ${escapeHtml(profile.email || currentUser.email || "")}</p>
+          <p class="muted">Phone: ${phoneDisplay}</p>
+          <div class="tag-wrap">${roles.map(r=>`<span class="pill success">${r}</span>`).join("")}</div>
+          <div class="btn-row"><button class="btn secondary" onclick="openEditAccount()">Edit Account Info</button></div>
+        </div>
+
+        <div class="card">
           <h2>Active Mode</h2>
-          <p class="muted">Switch between account modes. This does not delete your data.</p>
+          <p class="muted">Switch between barber and client mode. This does not delete your data.</p>
           <div class="btn-row">
             ${roles.includes("barber") ? `<button class="btn ${activeMode()==="barber"?"primary":"secondary"}" onclick="switchMode('barber')">Barber Mode</button>` : ""}
             ${roles.includes("client") ? `<button class="btn ${activeMode()==="client"?"primary":"secondary"}" onclick="switchMode('client')">Client Mode</button>` : ""}
@@ -418,68 +493,9 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
         </div>
 
         <div class="card">
-          <h2>Permissions</h2>
-          <p class="muted">Add or remove account permissions for testing.</p>
-          <div class="btn-row">
-            <button class="btn secondary" onclick="togglePermission('barber')">${roles.includes("barber") ? "Remove Barber" : "Add Barber"}</button>
-            <button class="btn secondary" onclick="togglePermission('client')">${roles.includes("client") ? "Remove Client" : "Add Client"}</button>
-          </div>
-        </div>
-
-        ${roles.includes("barber") ? `<div class="card">
-          <div class="profile-hero">
-            <div class="avatar">${initials(b.name||profile.name||"BC")}</div>
-            <div>
-              <h2>${escapeHtml(b.name||profile.name||"Barber")}</h2>
-              <p class="muted">${escapeHtml(b.shopName||"Shop")}</p>
-            </div>
-          </div>
-          <br>
-          <p class="muted">${escapeHtml(b.location||"No location set")}</p>
-          <p class="muted">${escapeHtml(b.bio||"No bio set")}</p>
-          <div class="tag-wrap">${services.map(s=>`<span class="pill">${escapeHtml(s)}</span>`).join("")}</div>
-          <div class="btn-row"><button class="btn primary" onclick="openEditProfile()">Edit Barber Profile</button></div>
-        </div>` : ""}
-
-        <div class="card">
           <h2>Session</h2>
           <div class="btn-row"><button class="btn danger" onclick="logout()">Logout</button></div>
         </div>`;
-    }
-
-
-    function openEditAccountModal() {
-      const profile = state.userProfile || {};
-      openModal("Edit Account Info", `
-        <label>Name</label>
-        <input id="accountName" value="${escapeAttr(profile.name || "")}" />
-
-        <label>Phone <span class="muted" style="text-transform:none;letter-spacing:0;">Recommended, optional</span></label>
-        <input id="accountPhone" type="tel" value="${escapeAttr(profile.phone || "")}" placeholder="Phone number" />
-
-        <p class="muted" style="margin-top:10px;">Phone number helps barbers and clients match profiles later, but it is not required.</p>
-
-        <div class="btn-row"><button class="btn primary" id="saveAccountInfoBtn" type="button">Save Account</button></div>
-      `);
-
-      const saveBtn = document.getElementById("saveAccountInfoBtn");
-      if (saveBtn) saveBtn.addEventListener("click", saveAccountInfo);
-    }
-
-    async function saveAccountInfo() {
-      try {
-        const name = val("accountName") || state.userProfile.name || "New User";
-        const phone = val("accountPhone");
-        await setDoc(doc(db, "users", currentUser.uid), { name, phone, updatedAt: serverTimestamp() }, { merge: true });
-
-        if (state.userProfile?.roles?.includes("barber")) {
-          await setDoc(doc(db, "barbers", currentUser.uid), { name, updatedAt: serverTimestamp() }, { merge: true });
-        }
-
-        closeModal();
-      } catch (err) {
-        alert("Account update failed: " + err.message);
-      }
     }
 
     window.openEditAccount = openEditAccountModal;
@@ -1253,10 +1269,47 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
 
     
 
+
+    window.openProfilePhotoModal = function() {
+      openModal("Profile Photo", `
+        <p class="muted">Upload a clear profile photo. Square photos work best.</p>
+        <label>Profile Photo</label>
+        <input id="profilePhotoInput" type="file" accept="image/*" />
+        <div class="btn-row"><button class="btn primary" type="button" onclick="saveProfilePhoto()">Upload Photo</button></div>
+      `);
+    }
+
+    window.saveProfilePhoto = async function() {
+      const input = document.getElementById("profilePhotoInput");
+      const file = input?.files?.[0];
+      if (!file) return alert("Choose a photo first.");
+
+      try {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const path = `profilePhotos/${currentUser.uid}/${Date.now()}-${safeName}`;
+        const storageRef = ref(storage, path);
+        await uploadBytes(storageRef, file);
+        const photoURL = await getDownloadURL(storageRef);
+
+        await setDoc(doc(db, "users", currentUser.uid), { photoURL, updatedAt: serverTimestamp() }, { merge: true });
+
+        if (state.userProfile?.roles?.includes("barber")) {
+          await setDoc(doc(db, "barbers", currentUser.uid), { photoURL, updatedAt: serverTimestamp() }, { merge: true });
+        }
+
+        closeModal();
+        alert("Profile photo updated.");
+      } catch (err) {
+        alert("Photo upload failed: " + err.message);
+      }
+    }
+
+
     window.openProfileMenu = function() {
       openModal("Profile Menu", `
         <div class="list">
           <button class="btn secondary" type="button" onclick="closeModal(); openEditAccount();">Edit Account Info</button>
+          <button class="btn secondary" type="button" onclick="closeModal(); openProfilePhotoModal();">Profile Photo</button>
           <button class="btn secondary" type="button" onclick="closeModal(); openEditUsername();">Edit Username</button>
           <button class="btn danger" type="button" onclick="logout()">Logout</button>
         </div>
