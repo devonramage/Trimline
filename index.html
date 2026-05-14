@@ -479,7 +479,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           ${r.notes ? `<span class="small">${escapeHtml(r.notes)}</span>` : ""}
           <span class="btn-row">
             <button class="btn secondary" onclick="acceptBookingRequest('${r.id}')">Accept</button>
-            <button class="btn danger" onclick="confirmDeclineBookingRequest('${r.id}')">Decline</button>
+            <button class="btn danger" onclick="openDeclineRequestConfirm('${r.id}')">Decline</button>
           </span>
           <span class="btn-row">
             <button class="btn danger" type="button" onclick="deleteBookingRequest('${r.id}')">Delete Request</button>
@@ -798,77 +798,6 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     }
 
 
-    window.cancelAppointmentAndSync = async function(appointmentId) {
-      const appt = (state.appointments || []).find(a => a.id === appointmentId);
-      if (!appt) return alert("Appointment not found.");
-
-      const label = `${appt.service || "Appointment"} on ${formatDate(appt.date)} at ${formatTime(appt.time)}`;
-      const confirmed = confirm(`Are you sure you want to cancel this appointment?\n\n${label}\n\nThis will also update the client side.`);
-      if (!confirmed) return;
-
-      try {
-        await updateDoc(doc(db, "appointments", appointmentId), {
-          status: "cancelled",
-          cancelledAt: serverTimestamp(),
-          cancelledBy: "barber"
-        });
-
-        let requestIdToUpdate = appt.requestId || "";
-
-        if (!requestIdToUpdate) {
-          const byAppointmentSnap = await getDocs(query(
-            collection(db, "bookingRequests"),
-            where("appointmentId", "==", appointmentId),
-            limit(1)
-          ));
-
-          if (!byAppointmentSnap.empty) {
-            requestIdToUpdate = byAppointmentSnap.docs[0].id;
-          }
-        }
-
-        if (!requestIdToUpdate) {
-          const fallbackSnap = await getDocs(query(
-            collection(db, "bookingRequests"),
-            where("barberId", "==", currentUser.uid),
-            where("date", "==", appt.date),
-            where("time", "==", appt.time)
-          ));
-
-          const match = fallbackSnap.docs.find(d => {
-            const r = d.data();
-            const sameClientUser = appt.clientUserId && r.clientUserId === appt.clientUserId;
-            const sameService = !appt.service || !r.service || r.service === appt.service;
-            const activeStatus = (r.status || "pending") === "accepted" || (r.status || "pending") === "pending";
-            return activeStatus && sameService && (sameClientUser || r.clientName === appt.clientName);
-          });
-
-          if (match) requestIdToUpdate = match.id;
-        }
-
-        if (requestIdToUpdate) {
-          await updateDoc(doc(db, "bookingRequests", requestIdToUpdate), {
-            status: "cancelled",
-            cancelledAt: serverTimestamp(),
-            cancelledBy: "barber",
-            appointmentId: appointmentId
-          });
-        } else {
-          console.warn("No matching booking request found to update for appointment", appointmentId);
-        }
-
-        state.appointments = (state.appointments || []).filter(a => a.id !== appointmentId);
-        state.bookingRequests = (state.bookingRequests || []).map(r => {
-          if (r.id === requestIdToUpdate) return { ...r, status: "cancelled" };
-          return r;
-        });
-
-        render();
-        alert(requestIdToUpdate ? "Appointment cancelled. Client status updated." : "Appointment cancelled, but no linked request was found.");
-      } catch (err) {
-        alert("Cancel failed: " + err.message);
-      }
-    }
 
     window.cancelAppointment = window.cancelAppointmentAndSync;
 
@@ -901,33 +830,6 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     }
 
 
-    window.confirmDeclineBookingRequest = async function(requestId) {
-      const request = (state.bookingRequests || []).find(r => r.id === requestId);
-      const label = request
-        ? `${request.service || "Booking request"} on ${formatDate(request.date)} at ${formatTime(request.time)}`
-        : "this booking request";
-
-      const confirmed = confirm(`Are you sure you want to decline/cancel ${label}?\n\nThe client will see this as cancelled/declined.`);
-      if (!confirmed) return;
-
-      try {
-        await updateDoc(doc(db, "bookingRequests", requestId), {
-          status: "declined",
-          declinedAt: serverTimestamp(),
-          declinedBy: "barber"
-        });
-
-        state.bookingRequests = (state.bookingRequests || []).map(r => {
-          if (r.id === requestId) return { ...r, status: "declined" };
-          return r;
-        });
-
-        render();
-        alert("Request declined.");
-      } catch (err) {
-        alert("Decline failed: " + err.message);
-      }
-    }
 
     window.declineBookingRequest = window.confirmDeclineBookingRequest;
 
@@ -1278,6 +1180,145 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     }
 
 
+window.openCancelAppointmentConfirm = function(appointmentId) {
+      const appt = (state.appointments || []).find(a => a.id === appointmentId);
+      if (!appt) return alert("Appointment not found.");
+
+      const client = clientById(appt.clientId);
+      const clientName = appt.clientName || client?.name || "Client";
+      const label = `${appt.service || "Appointment"} with ${clientName} on ${formatDate(appt.date)} at ${formatTime(appt.time)}`;
+
+      openModal("Cancel Appointment?", `
+        <p class="muted">Are you sure you want to cancel this appointment?</p>
+        <br>
+        <p><strong>${escapeHtml(label)}</strong></p>
+        <p class="muted" style="margin-top:10px;">This will remove it from your schedule and update the client booking status when linked.</p>
+        <div class="btn-row">
+          <button class="btn secondary" type="button" onclick="closeModal()">Keep Appointment</button>
+          <button class="btn danger" type="button" onclick="performCancelAppointment('${appointmentId}')">Yes, Cancel</button>
+        </div>
+      `);
+    }
+
+    window.performCancelAppointment = async function(appointmentId) {
+      const appt = (state.appointments || []).find(a => a.id === appointmentId);
+      if (!appt) {
+        closeModal();
+        return alert("Appointment not found.");
+      }
+
+      try {
+        await updateDoc(doc(db, "appointments", appointmentId), {
+          status: "cancelled",
+          cancelledAt: serverTimestamp(),
+          cancelledBy: "barber"
+        });
+
+        let requestIdToUpdate = appt.requestId || "";
+
+        if (!requestIdToUpdate) {
+          const byAppointmentSnap = await getDocs(query(
+            collection(db, "bookingRequests"),
+            where("appointmentId", "==", appointmentId),
+            limit(1)
+          ));
+
+          if (!byAppointmentSnap.empty) {
+            requestIdToUpdate = byAppointmentSnap.docs[0].id;
+          }
+        }
+
+        if (!requestIdToUpdate) {
+          const fallbackSnap = await getDocs(query(
+            collection(db, "bookingRequests"),
+            where("barberId", "==", currentUser.uid),
+            where("date", "==", appt.date),
+            where("time", "==", appt.time)
+          ));
+
+          const match = fallbackSnap.docs.find(d => {
+            const r = d.data();
+            const activeStatus = ["accepted", "pending"].includes(r.status || "pending");
+            const sameService = !appt.service || !r.service || r.service === appt.service;
+            const sameClientUser = appt.clientUserId && r.clientUserId === appt.clientUserId;
+            const sameClientName = appt.clientName && r.clientName === appt.clientName;
+            const sameClientByProfile = clientById(appt.clientId)?.phone && r.phone === clientById(appt.clientId)?.phone;
+            return activeStatus && sameService && (sameClientUser || sameClientName || sameClientByProfile);
+          });
+
+          if (match) requestIdToUpdate = match.id;
+        }
+
+        if (requestIdToUpdate) {
+          await updateDoc(doc(db, "bookingRequests", requestIdToUpdate), {
+            status: "cancelled",
+            cancelledAt: serverTimestamp(),
+            cancelledBy: "barber",
+            appointmentId
+          });
+        }
+
+        state.appointments = (state.appointments || []).filter(a => a.id !== appointmentId);
+        state.bookingRequests = (state.bookingRequests || []).map(r => {
+          if (r.id === requestIdToUpdate) return { ...r, status: "cancelled" };
+          return r;
+        });
+
+        closeModal();
+        render();
+
+        alert(requestIdToUpdate ? "Appointment cancelled. Client status updated." : "Appointment cancelled. No linked client request was found to update.");
+      } catch (err) {
+        alert("Cancel failed: " + err.message);
+      }
+    }
+
+    window.cancelAppointmentAndSync = window.openCancelAppointmentConfirm;
+    window.cancelAppointment = window.openCancelAppointmentConfirm;
+
+    window.openDeclineRequestConfirm = function(requestId) {
+      const request = (state.bookingRequests || []).find(r => r.id === requestId);
+      const label = request
+        ? `${request.service || "Booking request"} from ${request.clientName || "Client"} on ${formatDate(request.date)} at ${formatTime(request.time)}`
+        : "this booking request";
+
+      openModal("Decline Request?", `
+        <p class="muted">Are you sure you want to decline this booking request?</p>
+        <br>
+        <p><strong>${escapeHtml(label)}</strong></p>
+        <p class="muted" style="margin-top:10px;">The client will see this as declined.</p>
+        <div class="btn-row">
+          <button class="btn secondary" type="button" onclick="closeModal()">Keep Request</button>
+          <button class="btn danger" type="button" onclick="performDeclineBookingRequest('${requestId}')">Yes, Decline</button>
+        </div>
+      `);
+    }
+
+    window.performDeclineBookingRequest = async function(requestId) {
+      try {
+        await updateDoc(doc(db, "bookingRequests", requestId), {
+          status: "declined",
+          declinedAt: serverTimestamp(),
+          declinedBy: "barber"
+        });
+
+        state.bookingRequests = (state.bookingRequests || []).map(r => {
+          if (r.id === requestId) return { ...r, status: "declined" };
+          return r;
+        });
+
+        closeModal();
+        render();
+        alert("Request declined.");
+      } catch (err) {
+        alert("Decline failed: " + err.message);
+      }
+    }
+
+    window.confirmDeclineBookingRequest = window.openDeclineRequestConfirm;
+    window.declineBookingRequest = window.openDeclineRequestConfirm;
+
+    
     function showRuntimeError(message) { console.error(message); $("syncStatus").textContent="Sync Error"; alert(message); }
     function val(id) { return $(id)?.value.trim() || ""; }
     function getToday() { return new Date().toISOString().split("T")[0]; }

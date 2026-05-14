@@ -1,19 +1,17 @@
-# Barber Connect Cancel Sync v3
+# Barber Connect Cancel Confirm v1
 
 Fix:
-- Accepting a booking now stores the original requestId on the appointment
-- Accepting also stores appointmentId back on the booking request
-- Cancelling an accepted appointment now looks up the request three ways:
-  1. appointment.requestId
-  2. bookingRequest.appointmentId
-  3. fallback match by barber/date/time/client/service
-- Client request status should update to cancelled after barber cancels an accepted appointment
-- Cancel still asks for confirmation first
+- Every appointment Cancel button now opens a custom confirmation modal first
+- Every booking request Decline button now opens a custom confirmation modal first
+- Cancel only happens after tapping "Yes, Cancel"
+- Decline only happens after tapping "Yes, Decline"
+- Cancelling still attempts to sync the linked client booking request to cancelled
 
 Test:
-1. Client sends request
-2. Barber accepts request
-3. Client sees accepted
-4. Barber cancels appointment from Schedule
-5. Confirm popup appears
-6. Client sees cancelled after refresh
+1. Barber accepts a client request
+2. Barber goes to Schedule
+3. Tap Cancel
+4. You should see a modal with Keep Appointment / Yes, Cancel
+5. Tap Yes, Cancel
+6. Appointment disappears
+7. Client request should show cancelled if linked
