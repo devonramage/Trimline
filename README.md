@@ -1,15 +1,19 @@
-# Trimline Most Stable Rollback
+# Trimline Business Hours Card v0.1
 
-This restores the most stable working version before the profile layout changes broke buttons.
+Small safe test update.
 
-Use this now:
-- Upload index.html and README.md to GitHub
-- Commit changes
-- Let Vercel redeploy
+Added:
+- Static Business Hours preview card on the Profile/Settings page
+- No saving logic
+- No booking logic
+- No Firebase changes
+- No auth/login changes
 
-Stable point:
-- Auth works
-- Booking flow works
-- Cancel confirmation works
-- Safe nav labels work
-- No broken profile layout changes
+Test:
+1. Login works
+2. Bottom nav works
+3. Profile page opens
+4. Business Hours card appears
+5. Other buttons still work
+
+If stable, next version adds the Edit Hours modal.
