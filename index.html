@@ -71,8 +71,7 @@
     .portfolio-empty{padding:18px;border:1px dashed var(--border);border-radius:16px;color:#aaa;text-align:center}
     .portfolio-badge{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.72);padding:5px 9px;border-radius:999px;font-size:11px;font-weight:700}
   </style>
-<meta name="trimline-version" content="TRIMLINE_SAFE_NAV_V3">
-<meta name="trimline-version" content="TRIMLINE_BUSINESS_HOURS_SAVE_V04">
+<meta name="trimline-version" content="TRIMLINE_BUSINESS_HOURS_BOOKING_V05_SAFE">
 </head>
 <body>
   <div id="loginScreen" class="auth-screen">
@@ -620,12 +619,25 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
 
       try {
         if (note) note.textContent = "Checking availability...";
-        const unavailable = await getUnavailableTimesForBarber(selected.id, date);
-        const currentValue = timeSelect.value;
-        timeSelect.innerHTML = timeSlotOptionsWithUnavailable(unavailable, currentValue);
 
-        const availableCount = Array.from(timeSelect.options).filter(o => !o.disabled).length;
-        if (note) note.textContent = availableCount ? `${availableCount} time slots available.` : "No available time slots for this day.";
+        const hours = await loadSelectedBarberHoursSafe();
+        const dayHours = hours[getDayKeySafe(date)];
+
+        if (!dayHours || !dayHours.open) {
+          timeSelect.innerHTML = `<option value="">Closed this day</option>`;
+          if (note) note.textContent = "This barber is closed on this day.";
+          return;
+        }
+
+        const unavailable = await getUnavailableTimesForBarber(selected.id, date);
+        timeSelect.innerHTML = buildTimeOptionsFromHoursSafe(dayHours, unavailable, timeSelect.value);
+
+        const availableCount = Array.from(timeSelect.options).filter(o => !o.disabled && o.value).length;
+        if (note) {
+          note.textContent = availableCount
+            ? `${availableCount} available time slots.`
+            : "No available time slots for this day.";
+        }
       } catch (err) {
         if (note) note.textContent = "Could not check availability.";
         console.error(err);
@@ -717,7 +729,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
         <input id="requestDate" type="date" value="${getToday()}" />
 
         <label>Time</label>
-        <select id="requestTime">${timeSlotOptions()}</select>
+        <select id="requestTime"><option value="">Choose a date first</option></select>
         <p id="availabilityNote" class="muted" style="margin-top:8px;">Checking availability...</p>
 
         <label>Notes</label>
@@ -748,6 +760,24 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
       setSendRequestLoading(true);
 
       try {
+        const hours = await loadSelectedBarberHoursSafe();
+        const dayHours = hours[getDayKeySafe(requestDate)];
+
+        if (!dayHours || !dayHours.open) {
+          alert("This barber is closed on that day.");
+          await refreshRequestTimeSlots();
+          setSendRequestLoading(false);
+          return;
+        }
+
+        const requestMins = minutesSafe(requestTime);
+        if (requestMins < minutesSafe(dayHours.start) || requestMins >= minutesSafe(dayHours.end)) {
+          alert("That time is outside this barber's business hours.");
+          await refreshRequestTimeSlots();
+          setSendRequestLoading(false);
+          return;
+        }
+
         const duplicate = await hasDuplicatePendingRequest(selected.id, currentUser.uid, requestDate, requestTime);
         if (duplicate) {
           alert("You already have a request for that date and time.");
@@ -1389,6 +1419,79 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
       } catch (err) {
         alert("Could not save business hours: " + err.message);
       }
+    }
+
+
+
+    function getDefaultBusinessHoursSafe() {
+      if (typeof businessHoursPreviewDefaults === "function") return businessHoursPreviewDefaults();
+      return {
+        monday: { open: true, start: "09:00", end: "17:00" },
+        tuesday: { open: true, start: "09:00", end: "17:00" },
+        wednesday: { open: true, start: "09:00", end: "17:00" },
+        thursday: { open: true, start: "09:00", end: "17:00" },
+        friday: { open: true, start: "09:00", end: "17:00" },
+        saturday: { open: false, start: "09:00", end: "17:00" },
+        sunday: { open: false, start: "09:00", end: "17:00" }
+      };
+    }
+
+    function getDayKeySafe(dateStr) {
+      if (!dateStr) return "";
+      const day = new Date(dateStr + "T00:00:00").getDay();
+      return ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][day];
+    }
+
+    function minutesSafe(time) {
+      const parts = String(time || "00:00").split(":");
+      return (Number(parts[0] || 0) * 60) + Number(parts[1] || 0);
+    }
+
+    function timeSafe(total) {
+      const h = Math.floor(total / 60);
+      const m = total % 60;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    }
+
+    function timeLabelSafe(time) {
+      try {
+        return new Date(`2000-01-01T${time}:00`).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      } catch {
+        return time;
+      }
+    }
+
+    async function loadSelectedBarberHoursSafe() {
+      const selected = state.userProfile?.selectedBarber;
+      const defaults = getDefaultBusinessHoursSafe();
+      if (!selected?.id) return defaults;
+
+      try {
+        const snap = await getDoc(doc(db, "barbers", selected.id));
+        const saved = snap.exists() ? snap.data().businessHours : null;
+        return { ...defaults, ...(saved || {}) };
+      } catch (err) {
+        console.error("Business hours load failed", err);
+        return defaults;
+      }
+    }
+
+    function buildTimeOptionsFromHoursSafe(dayHours, unavailableTimes = new Set(), selectedValue = "") {
+      if (!dayHours || !dayHours.open) {
+        return `<option value="">Closed this day</option>`;
+      }
+
+      const start = minutesSafe(dayHours.start);
+      const end = minutesSafe(dayHours.end);
+      let options = "";
+
+      for (let mins = start; mins < end; mins += 30) {
+        const value = timeSafe(mins);
+        const disabled = unavailableTimes.has(value) && value !== selectedValue;
+        options += `<option value="${value}" ${value === selectedValue ? "selected" : ""} ${disabled ? "disabled" : ""}>${timeLabelSafe(value)}${disabled ? " — unavailable" : ""}</option>`;
+      }
+
+      return options || `<option value="">No slots available</option>`;
     }
 
 
