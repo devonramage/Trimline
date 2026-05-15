@@ -1,19 +1,19 @@
-# Trimline Business Hours Button v0.3
-
-Small safe update.
+# Trimline Business Hours Save v0.4
 
 Added:
-- Missing Edit Hours button under the Business Hours preview card
-- Button opens the existing Business Hours preview modal
+- Save Hours button
+- Business hours save to Firebase under barbers/{uid}.businessHours
+- Saved hours reload when reopening the modal
+- Basic validation: end time must be after start time
 
-No Firebase save logic yet.
-No booking availability logic yet.
-No auth changes.
+Not added yet:
+- Client booking form does not use these hours yet
+- Availability slots are not filtered yet
 
 Test:
 1. Login works
 2. Profile opens
-3. Edit Hours button appears
-4. Tap Edit Hours
-5. Modal opens
-6. Close works
+3. Edit Hours opens
+4. Change a day/time
+5. Save Hours
+6. Reopen modal and confirm the changes stayed

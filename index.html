@@ -72,7 +72,7 @@
     .portfolio-badge{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.72);padding:5px 9px;border-radius:999px;font-size:11px;font-weight:700}
   </style>
 <meta name="trimline-version" content="TRIMLINE_SAFE_NAV_V3">
-<meta name="trimline-version" content="TRIMLINE_BUSINESS_HOURS_BUTTON_V03">
+<meta name="trimline-version" content="TRIMLINE_BUSINESS_HOURS_SAVE_V04">
 </head>
 <body>
   <div id="loginScreen" class="auth-screen">
@@ -451,7 +451,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
             <div class="row">
               <span class="row-main">
                 <strong>Weekly Availability</strong>
-                <span class="muted">Not connected yet — test card only.</span>
+                <span class="muted">${b.businessHours ? "Saved hours active." : "Not saved yet — set your hours."}</span>
               </span>
               <span class="pill warning">Preview</span>
             </div>
@@ -1319,11 +1319,11 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     }
 
     window.openBusinessHoursPreview = function() {
-      const hours = businessHoursPreviewDefaults();
+      const hours = { ...businessHoursPreviewDefaults(), ...(state.barber?.businessHours || {}) };
       const days = Object.keys(hours);
 
       openModal("Business Hours", `
-        <p class="muted">Preview only. Next version will save these hours.</p>
+        <p class="muted">Set your weekly availability. Clients will use this in the next version.</p>
         <div class="list">
           ${days.map(day => `
             <div class="card" style="background:#0b0b0b;margin-bottom:8px;">
@@ -1346,8 +1346,49 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
         </div>
         <div class="btn-row">
           <button class="btn secondary" type="button" onclick="closeModal()">Close</button>
+          <button class="btn primary" type="button" onclick="saveBusinessHours()">Save Hours</button>
         </div>
       `);
+    }
+
+
+
+    window.saveBusinessHours = async function() {
+      try {
+        const base = businessHoursPreviewDefaults();
+        const output = {};
+
+        function mins(time) {
+          const [h, m] = String(time || "00:00").split(":").map(Number);
+          return (h * 60) + (m || 0);
+        }
+
+        for (const day of Object.keys(base)) {
+          const open = document.getElementById(`preview_${day}_open`)?.checked || false;
+          const start = document.getElementById(`preview_${day}_start`)?.value || base[day].start;
+          const end = document.getElementById(`preview_${day}_end`)?.value || base[day].end;
+
+          if (open && mins(end) <= mins(start)) {
+            return alert(`${businessHoursDayLabel(day)} end time must be after start time.`);
+          }
+
+          output[day] = { open, start, end };
+        }
+
+        await setDoc(doc(db, "barbers", currentUser.uid), {
+          businessHours: output,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        if (!state.barber) state.barber = {};
+        state.barber.businessHours = output;
+
+        closeModal();
+        alert("Business hours saved.");
+        renderProfile();
+      } catch (err) {
+        alert("Could not save business hours: " + err.message);
+      }
     }
 
 
