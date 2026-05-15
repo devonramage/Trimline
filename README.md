@@ -1,22 +1,19 @@
-# Trimline Business Hours Modal v0.2
+# Trimline Business Hours Button v0.3
 
 Small safe update.
 
 Added:
-- Edit Hours button on Business Hours card
-- Business Hours modal
-- Day open/closed toggles
-- Start/end dropdowns
-- Close button
+- Missing Edit Hours button under the Business Hours preview card
+- Button opens the existing Business Hours preview modal
 
-Not added yet:
-- Firebase save logic
-- Booking availability connection
+No Firebase save logic yet.
+No booking availability logic yet.
+No auth changes.
 
 Test:
 1. Login works
 2. Profile opens
-3. Business Hours card appears
-4. Edit Hours opens modal
-5. Close works
-6. Other buttons still work
+3. Edit Hours button appears
+4. Tap Edit Hours
+5. Modal opens
+6. Close works
