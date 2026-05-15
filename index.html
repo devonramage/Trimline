@@ -71,7 +71,7 @@
     .portfolio-empty{padding:18px;border:1px dashed var(--border);border-radius:16px;color:#aaa;text-align:center}
     .portfolio-badge{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.72);padding:5px 9px;border-radius:999px;font-size:11px;font-weight:700}
   </style>
-<meta name="trimline-version" content="TRIMLINE_BUSINESS_HOURS_BOOKING_V05_SAFE">
+<meta name="trimline-version" content="TRIMLINE_BOOKING_HOURS_FIXED_V2">
 </head>
 <body>
   <div id="loginScreen" class="auth-screen">
@@ -620,14 +620,32 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
       try {
         if (note) note.textContent = "Checking availability...";
 
-        const hours = await loadSelectedBarberHoursSafe();
-        const dayHours = hours[getDayKeySafe(date)];
+        const hours = await tlLoadSelectedBarberHours();
+        const dayHours = hours[tlDayKey(date)];
 
         if (!dayHours || !dayHours.open) {
           timeSelect.innerHTML = `<option value="">Closed this day</option>`;
           if (note) note.textContent = "This barber is closed on this day.";
           return;
         }
+
+        const unavailable = await getUnavailableTimesForBarber(selected.id, date);
+
+        timeSelect.innerHTML = tlBuildTimeOptions(dayHours, unavailable, timeSelect.value);
+
+        const availableCount = Array.from(timeSelect.options).filter(o => !o.disabled && o.value).length;
+
+        if (note) {
+          note.textContent = availableCount
+            ? `${availableCount} available time slots.`
+            : "No available time slots for this day.";
+        }
+
+      } catch (err) {
+        console.error(err);
+        if (note) note.textContent = "Could not check availability.";
+      }
+    }
 
         const unavailable = await getUnavailableTimesForBarber(selected.id, date);
         timeSelect.innerHTML = buildTimeOptionsFromHoursSafe(dayHours, unavailable, timeSelect.value);
@@ -1495,7 +1513,83 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     }
 
 
-    function showRuntimeError(message) { console.error(message); $("syncStatus").textContent="Sync Error"; alert(message); }
+    
+    function tlDefaultBusinessHours() {
+      if (typeof businessHoursPreviewDefaults === "function") return businessHoursPreviewDefaults();
+      return {
+        monday: { open: true, start: "09:00", end: "17:00" },
+        tuesday: { open: true, start: "09:00", end: "17:00" },
+        wednesday: { open: true, start: "09:00", end: "17:00" },
+        thursday: { open: true, start: "09:00", end: "17:00" },
+        friday: { open: true, start: "09:00", end: "17:00" },
+        saturday: { open: false, start: "09:00", end: "17:00" },
+        sunday: { open: false, start: "09:00", end: "17:00" }
+      };
+    }
+
+    function tlDayKey(dateStr) {
+      if (!dateStr) return "";
+      const d = new Date(dateStr + "T00:00:00");
+      return ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][d.getDay()];
+    }
+
+    function tlMinutes(time) {
+      const [h, m] = String(time || "00:00").split(":").map(Number);
+      return (h * 60) + (m || 0);
+    }
+
+    function tlTimeFromMinutes(total) {
+      const h = Math.floor(total / 60);
+      const m = total % 60;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    }
+
+    function tlTimeLabel(time) {
+      try {
+        return new Date(`2000-01-01T${time}:00`).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      } catch {
+        return time;
+      }
+    }
+
+    async function tlLoadSelectedBarberHours() {
+      const selected = state.userProfile?.selectedBarber;
+      const defaults = tlDefaultBusinessHours();
+
+      if (!selected?.id) return defaults;
+
+      try {
+        const snap = await getDoc(doc(db, "barbers", selected.id));
+        const saved = snap.exists() ? snap.data().businessHours : null;
+        return { ...defaults, ...(saved || {}) };
+      } catch (err) {
+        console.error(err);
+        return defaults;
+      }
+    }
+
+    function tlBuildTimeOptions(dayHours, unavailableTimes = new Set(), currentValue = "") {
+      if (!dayHours || !dayHours.open) {
+        return `<option value="">Closed this day</option>`;
+      }
+
+      const start = tlMinutes(dayHours.start);
+      const end = tlMinutes(dayHours.end);
+
+      let options = "";
+
+      for (let mins = start; mins < end; mins += 30) {
+        const value = tlTimeFromMinutes(mins);
+        const disabled = unavailableTimes.has(value) && value !== currentValue;
+
+        options += `<option value="${value}" ${disabled ? "disabled" : ""}>${tlTimeLabel(value)}${disabled ? " — unavailable" : ""}</option>`;
+      }
+
+      return options || `<option value="">No slots available</option>`;
+    }
+
+
+function showRuntimeError(message) { console.error(message); $("syncStatus").textContent="Sync Error"; alert(message); }
     function val(id) { return $(id)?.value.trim() || ""; }
     function getToday() { return new Date().toISOString().split("T")[0]; }
     function formatDate(dateStr) { if(!dateStr) return "No date"; const d=new Date(dateStr+"T00:00:00"); return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); }
