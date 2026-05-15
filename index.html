@@ -72,7 +72,7 @@
     .portfolio-badge{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.72);padding:5px 9px;border-radius:999px;font-size:11px;font-weight:700}
   </style>
 <meta name="trimline-version" content="TRIMLINE_SAFE_NAV_V3">
-<meta name="trimline-version" content="TRIMLINE_BUSINESS_HOURS_CARD_V01">
+<meta name="trimline-version" content="TRIMLINE_BUSINESS_HOURS_MODAL_V02">
 </head>
 <body>
   <div id="loginScreen" class="auth-screen">
@@ -456,6 +456,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
               <span class="pill warning">Preview</span>
             </div>
           </div>
+          <div class="btn-row"><button class="btn primary" type="button" onclick="openBusinessHoursPreview()">Edit Hours</button></div>
         </div>
 
         <h2>Session</h2>
@@ -1275,6 +1276,76 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           <button class="btn secondary" type="button" onclick="closeModal(); openEditAccount();">Edit Account Info</button>
           <button class="btn secondary" type="button" onclick="closeModal(); openEditUsername();">Edit Username</button>
           <button class="btn danger" type="button" onclick="logout()">Logout</button>
+        </div>
+      `);
+    }
+
+
+
+    function businessHoursPreviewDefaults() {
+      return {
+        monday: { open: true, start: "09:00", end: "17:00" },
+        tuesday: { open: true, start: "09:00", end: "17:00" },
+        wednesday: { open: true, start: "09:00", end: "17:00" },
+        thursday: { open: true, start: "09:00", end: "17:00" },
+        friday: { open: true, start: "09:00", end: "17:00" },
+        saturday: { open: false, start: "09:00", end: "17:00" },
+        sunday: { open: false, start: "09:00", end: "17:00" }
+      };
+    }
+
+    function businessHoursTimeLabel(time) {
+      try {
+        const d = new Date(`2000-01-01T${time}:00`);
+        return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      } catch {
+        return time;
+      }
+    }
+
+    function businessHoursTimeOptions(selected = "09:00") {
+      let output = "";
+      for (let hour = 5; hour <= 23; hour++) {
+        for (const minute of [0, 30]) {
+          const value = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+          output += `<option value="${value}" ${value === selected ? "selected" : ""}>${businessHoursTimeLabel(value)}</option>`;
+        }
+      }
+      return output;
+    }
+
+    function businessHoursDayLabel(day) {
+      return day.charAt(0).toUpperCase() + day.slice(1);
+    }
+
+    window.openBusinessHoursPreview = function() {
+      const hours = businessHoursPreviewDefaults();
+      const days = Object.keys(hours);
+
+      openModal("Business Hours", `
+        <p class="muted">Preview only. Next version will save these hours.</p>
+        <div class="list">
+          ${days.map(day => `
+            <div class="card" style="background:#0b0b0b;margin-bottom:8px;">
+              <label style="display:flex;align-items:center;gap:10px;margin:0 0 12px;text-transform:none;letter-spacing:0;">
+                <input type="checkbox" id="preview_${day}_open" ${hours[day].open ? "checked" : ""} style="width:auto;" />
+                ${businessHoursDayLabel(day)}
+              </label>
+              <div class="grid grid-2">
+                <div>
+                  <label>Start</label>
+                  <select id="preview_${day}_start">${businessHoursTimeOptions(hours[day].start)}</select>
+                </div>
+                <div>
+                  <label>End</label>
+                  <select id="preview_${day}_end">${businessHoursTimeOptions(hours[day].end)}</select>
+                </div>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+        <div class="btn-row">
+          <button class="btn secondary" type="button" onclick="closeModal()">Close</button>
         </div>
       `);
     }

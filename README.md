@@ -1,19 +1,22 @@
-# Trimline Business Hours Card v0.1
+# Trimline Business Hours Modal v0.2
 
-Small safe test update.
+Small safe update.
 
 Added:
-- Static Business Hours preview card on the Profile/Settings page
-- No saving logic
-- No booking logic
-- No Firebase changes
-- No auth/login changes
+- Edit Hours button on Business Hours card
+- Business Hours modal
+- Day open/closed toggles
+- Start/end dropdowns
+- Close button
+
+Not added yet:
+- Firebase save logic
+- Booking availability connection
 
 Test:
 1. Login works
-2. Bottom nav works
-3. Profile page opens
-4. Business Hours card appears
-5. Other buttons still work
-
-If stable, next version adds the Edit Hours modal.
+2. Profile opens
+3. Business Hours card appears
+4. Edit Hours opens modal
+5. Close works
+6. Other buttons still work
