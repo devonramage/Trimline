@@ -1,18 +1,19 @@
-# Trimline Business Hours Booking v0.5
+# Trimline Business Hours Save v0.4
 
 Added:
-- Client booking time dropdown now uses the selected barber's saved business hours
-- Closed days show "Closed this day"
-- Open days only show 30-minute slots inside business hours
-- Existing pending/accepted times still show unavailable
-- Send Request validates business hours again before saving
+- Save Hours button
+- Business hours save to Firebase under barbers/{uid}.businessHours
+- Saved hours reload when reopening the modal
+- Basic validation: end time must be after start time
 
-No Firebase rule changes required.
+Not added yet:
+- Client booking form does not use these hours yet
+- Availability slots are not filtered yet
 
 Test:
-1. Barber saves business hours
-2. Client selects that barber
-3. Client opens Request Booking
-4. Pick a closed day — should say closed
-5. Pick an open day — only times inside hours should show
-6. Pending/booked times should still be unavailable
+1. Login works
+2. Profile opens
+3. Edit Hours opens
+4. Change a day/time
+5. Save Hours
+6. Reopen modal and confirm the changes stayed
