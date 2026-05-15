@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Barber Connect</title>
+  <title>Trimline</title>
   <meta name="theme-color" content="#050505" />
   <style>
     :root {
@@ -70,13 +70,32 @@
     .portfolio-item img{width:100%;height:100%;object-fit:cover;display:block}
     .portfolio-empty{padding:18px;border:1px dashed var(--border);border-radius:16px;color:#aaa;text-align:center}
     .portfolio-badge{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.72);padding:5px 9px;border-radius:999px;font-size:11px;font-weight:700}
+  
+    /* trimline-brand-polish */
+    .brand-title, .app-title, header h1{
+      letter-spacing:-.05em;
+    }
+    .brand-wordmark{
+      font-weight:950;
+      letter-spacing:-.06em;
+    }
+    .brand-subtitle{
+      color:var(--muted);
+      font-size:13px;
+      margin-top:4px;
+    }
+  
+    .trimline-login-logo{width:min(310px,82vw);height:auto;display:block;margin:0 0 18px}
+    .trimline-icon-img{width:44px;height:44px;border-radius:13px;object-fit:cover;display:block}
+    .trimline-wordmark-small{display:flex;align-items:center;gap:10px}
+    .trimline-wordmark-small img{width:38px;height:38px;border-radius:12px;object-fit:cover}
   </style>
-<meta name="trimline-version" content="TRIMLINE_BOOKING_HOURS_FIXED_V2">
+<meta name="trimline-version" content="TRIMLINE_LOGO_INTEGRATION_V1">
 </head>
 <body>
   <div id="loginScreen" class="auth-screen">
-    <div class="auth-logo">Barber Connect</div>
-    <p class="muted">Sign in to your barber or client account.</p>
+    <div class="auth-logo">Trimline</div>
+    <p class="muted">Sign in to your Trimline account.</p>
     <div class="card" style="margin-top:18px;">
       <label>Email</label><input id="loginEmail" type="email" placeholder="you@email.com" />
       <label>Password</label><input id="loginPassword" type="password" placeholder="Password" />
@@ -89,7 +108,7 @@
 
   <div id="signupScreen" class="auth-screen hidden">
     <div class="auth-logo">Create Account</div>
-    <p class="muted">Choose your permissions. You can change modes later in Settings.</p>
+    <p class="muted">Choose how you’ll use Trimline. You can switch modes later.</p>
     <div class="card" style="margin-top:18px;">
       <label>Name</label><input id="signupName" placeholder="Your name" />
       <label>Email</label><input id="signupEmail" type="email" placeholder="you@email.com" />
@@ -109,7 +128,7 @@
 
   <div id="roleSetupScreen" class="auth-screen hidden">
     <div class="auth-logo">One more thing</div>
-    <p class="muted">Choose how you want to use Barber Connect.</p>
+    <p class="muted">Choose how you want to use Trimline.</p>
     <div class="card" style="margin-top:18px;">
       <label>Display Name</label><input id="setupName" placeholder="Your name" />
       <label>Phone <span class="muted" style="text-transform:none;letter-spacing:0;">Recommended, optional</span></label><input id="setupPhone" type="tel" placeholder="Phone number" />
@@ -124,7 +143,7 @@
   </div>
 
   <div id="appShell" class="app-shell hidden">
-    <header><div class="brand-row"><div class="logo-mark">BC</div><div class="brand-copy"><div class="eyebrow" id="syncStatus">Firebase MVP</div><h1 id="pageTitle">Dashboard</h1></div></div></header>
+    <header><div class="brand-row"><div class="logo-mark"><img class="trimline-icon-img" src="assets/trimline-logo.png" alt="Trimline"></div><div class="brand-copy"><div class="eyebrow" id="syncStatus">Firebase MVP</div><h1 id="pageTitle">Dashboard</h1></div></div></header>
     <div class="mode-banner"><span class="pill" id="modePill">Mode: Barber</span></div>
     <main>
       <section id="dashboard" class="page active"></section>
@@ -209,13 +228,13 @@
     async function createUserProfile(user, name, roles, phone = "") {
       const activeMode = roles.includes("barber") ? "barber" : "client";
       await setDoc(doc(db, "users", user.uid), { uid:user.uid, email:user.email, name:name || user.displayName || "New User", phone: phone || "", roles, activeMode, createdAt:serverTimestamp() }, { merge:true });
-      if (roles.includes("barber")) await setDoc(doc(db, "barbers", user.uid), { uid:user.uid, email:user.email, name:name || user.displayName || "New Barber", shopName:"Barber Connect Studio", location:"", bio:"Edit your barber profile.", services:"Fade, Taper, Beard Trim", username:"", usernameLower:"", createdAt:serverTimestamp() }, { merge:true });
+      if (roles.includes("barber")) await setDoc(doc(db, "barbers", user.uid), { uid:user.uid, email:user.email, name:name || user.displayName || "New Barber", shopName:"Trimline Studio", location:"", bio:"Edit your barber profile.", services:"Fade, Taper, Beard Trim", username:"", usernameLower:"", createdAt:serverTimestamp() }, { merge:true });
     }
     async function ensureModeData() {
       const profile = state.userProfile;
       if (profile.roles?.includes("barber")) {
         const barberSnap = await getDoc(doc(db, "barbers", currentUser.uid));
-        if (!barberSnap.exists()) await setDoc(doc(db, "barbers", currentUser.uid), { uid:currentUser.uid, email:currentUser.email, name:profile.name || "New Barber", shopName:"Barber Connect Studio", location:"", bio:"Edit your barber profile.", services:"Fade, Taper, Beard Trim", username:"", usernameLower:"", createdAt:serverTimestamp() });
+        if (!barberSnap.exists()) await setDoc(doc(db, "barbers", currentUser.uid), { uid:currentUser.uid, email:currentUser.email, name:profile.name || "New Barber", shopName:"Trimline Studio", location:"", bio:"Edit your barber profile.", services:"Fade, Taper, Beard Trim", username:"", usernameLower:"", createdAt:serverTimestamp() });
       }
     }
 
@@ -226,7 +245,7 @@
         unsubscribers.push(onSnapshot(doc(db, "barbers", currentUser.uid), snap => { state.barber = snap.exists() ? { id:snap.id, ...snap.data() } : null; render(); }, err => showRuntimeError("Barber sync failed: " + err.message)));
         unsubscribers.push(onSnapshot(query(collection(db, "clients"), where("barberId", "==", currentUser.uid)), snap => { state.clients = snap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>String(b.createdAt?.seconds||0).localeCompare(String(a.createdAt?.seconds||0))); render(); }, err => showRuntimeError("Clients sync failed: " + err.message)));
         unsubscribers.push(onSnapshot(query(collection(db, "cuts"), where("barberId", "==", currentUser.uid)), snap => { state.cuts = snap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))); render(); }, err => showRuntimeError("Cuts sync failed: " + err.message)));
-        unsubscribers.push(onSnapshot(query(collection(db, "appointments"), where("barberId", "==", currentUser.uid)), snap => { state.appointments = snap.docs.map(d => ({ id:d.id, ...d.data() })).filter(a => (a.status || "scheduled") !== "cancelled").sort((a,b)=>`${a.date||""} ${a.time||""}`.localeCompare(`${b.date||""} ${b.time||""}`)); $("syncStatus").textContent = "Live Cloud Sync"; render(); }, err => showRuntimeError("Appointments sync failed: " + err.message)));
+        unsubscribers.push(onSnapshot(query(collection(db, "appointments"), where("barberId", "==", currentUser.uid)), snap => { state.appointments = snap.docs.map(d => ({ id:d.id, ...d.data() })).filter(a => (a.status || "scheduled") !== "cancelled").sort((a,b)=>`${a.date||""} ${a.time||""}`.localeCompare(`${b.date||""} ${b.time||""}`)); $("syncStatus").textContent = "Live Sync"; render(); }, err => showRuntimeError("Appointments sync failed: " + err.message)));
         unsubscribers.push(onSnapshot(query(collection(db, "bookingRequests"), where("barberId", "==", currentUser.uid)), snap => {
           state.bookingRequests = snap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>`${a.date||""} ${a.time||""}`.localeCompare(`${b.date||""} ${b.time||""}`));
           render();
@@ -428,7 +447,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
 
         ${roles.includes("barber") ? `<div class="card">
           <div class="profile-hero">
-            <div class="avatar">${initials(b.name||profile.name||"BC")}</div>
+            <div class="avatar">${initials(b.name||profile.name||"TL")}</div>
             <div>
               <h2>${escapeHtml(b.name||profile.name||"Barber")}</h2>
               <p class="muted">${escapeHtml(b.shopName||"Shop")}</p>
@@ -1109,7 +1128,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
         <div class="barber-profile-cover" style="margin-top:12px;"></div>
         <div class="card barber-profile-card">
           <div class="profile-hero">
-            <div class="avatar">${initials(barber.name || "BC")}</div>
+            <div class="avatar">${initials(barber.name || "TL")}</div>
             <div>
               <h2>${escapeHtml(barber.name || "Barber")}</h2>
               <p class="profile-handle">@${escapeHtml(barber.username || barber.usernameLower || "")}</p>
@@ -1593,7 +1612,7 @@ function showRuntimeError(message) { console.error(message); $("syncStatus").tex
     function val(id) { return $(id)?.value.trim() || ""; }
     function getToday() { return new Date().toISOString().split("T")[0]; }
     function formatDate(dateStr) { if(!dateStr) return "No date"; const d=new Date(dateStr+"T00:00:00"); return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); }
-    function initials(name) { return (name||"BC").split(" ").map(n=>n[0]).slice(0,2).join("").toUpperCase(); }
+    function initials(name) { return (name||"TL").split(" ").map(n=>n[0]).slice(0,2).join("").toUpperCase(); }
     function escapeHtml(str="") { return String(str).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
     function escapeAttr(str="") { return escapeHtml(str).replaceAll("\n"," "); }
     function cleanFirebaseError(msg) { return msg.replace("Firebase: ","").replace(/\s*\(auth\/.+?\)\.?/,""); }
