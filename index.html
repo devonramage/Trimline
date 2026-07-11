@@ -223,7 +223,7 @@
     function subscribeToData() {
       $("syncStatus").textContent = "Syncing...";
       unsubscribers.push(onSnapshot(doc(db, "users", currentUser.uid), snap => { state.userProfile = { id:snap.id, ...snap.data() }; updateModeUI(); render(); }, err => showRuntimeError("User sync failed: " + err.message)));
-      if (state.userProfile.roles?.includes("barber")) {
+      if (isBarberMode()) {
         unsubscribers.push(onSnapshot(doc(db, "barbers", currentUser.uid), snap => { state.barber = snap.exists() ? { id:snap.id, ...snap.data() } : null; render(); }, err => showRuntimeError("Barber sync failed: " + err.message)));
         unsubscribers.push(onSnapshot(query(collection(db, "clients"), where("barberId", "==", currentUser.uid)), snap => { state.clients = snap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>String(b.createdAt?.seconds||0).localeCompare(String(a.createdAt?.seconds||0))); render(); }, err => showRuntimeError("Clients sync failed: " + err.message)));
         unsubscribers.push(onSnapshot(query(collection(db, "cuts"), where("barberId", "==", currentUser.uid)), snap => { state.cuts = snap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))); render(); }, err => showRuntimeError("Cuts sync failed: " + err.message)));
