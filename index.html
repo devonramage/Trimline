@@ -71,8 +71,7 @@
     .portfolio-empty{padding:18px;border:1px dashed var(--border);border-radius:16px;color:#aaa;text-align:center}
     .portfolio-badge{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.72);padding:5px 9px;border-radius:999px;font-size:11px;font-weight:700}
   </style>
-<meta name="trimline-version" content="TRIMLINE_SAFE_NAV_V3">
-<meta name="trimline-version" content="TRIMLINE_BUSINESS_HOURS_BOOKING_V05">
+<meta name="trimline-version" content="TRIMLINE_BOOKING_HOURS_FIXED_V2">
 </head>
 <body>
   <div id="loginScreen" class="auth-screen">
@@ -621,9 +620,8 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
       try {
         if (note) note.textContent = "Checking availability...";
 
-        const hours = await getSelectedBarberBusinessHours();
-        const dayKey = bookingDayKeyFromDate(date);
-        const dayHours = hours[dayKey];
+        const hours = await tlLoadSelectedBarberHours();
+        const dayHours = hours[tlDayKey(date)];
 
         if (!dayHours || !dayHours.open) {
           timeSelect.innerHTML = `<option value="">Closed this day</option>`;
@@ -632,18 +630,38 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
         }
 
         const unavailable = await getUnavailableTimesForBarber(selected.id, date);
-        const currentValue = timeSelect.value;
-        timeSelect.innerHTML = buildBookingTimeOptions(dayHours, unavailable, currentValue);
+
+        timeSelect.innerHTML = tlBuildTimeOptions(dayHours, unavailable, timeSelect.value);
 
         const availableCount = Array.from(timeSelect.options).filter(o => !o.disabled && o.value).length;
-        if (note) note.textContent = availableCount
-          ? `${availableCount} available time slots.`
-          : "No available time slots for this day.";
+
+        if (note) {
+          note.textContent = availableCount
+            ? `${availableCount} available time slots.`
+            : "No available time slots for this day.";
+        }
+
+      } catch (err) {
+        console.error(err);
+        if (note) note.textContent = "Could not check availability.";
+      }
+    }
+
+        const unavailable = await getUnavailableTimesForBarber(selected.id, date);
+        timeSelect.innerHTML = buildTimeOptionsFromHoursSafe(dayHours, unavailable, timeSelect.value);
+
+        const availableCount = Array.from(timeSelect.options).filter(o => !o.disabled && o.value).length;
+        if (note) {
+          note.textContent = availableCount
+            ? `${availableCount} available time slots.`
+            : "No available time slots for this day.";
+        }
       } catch (err) {
         if (note) note.textContent = "Could not check availability.";
         console.error(err);
       }
     }
+
 
 
     async function hasDuplicatePendingRequest(barberId, clientUserId, date, time) {
@@ -760,8 +778,8 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
       setSendRequestLoading(true);
 
       try {
-        const hours = await getSelectedBarberBusinessHours();
-        const dayHours = hours[bookingDayKeyFromDate(requestDate)];
+        const hours = await loadSelectedBarberHoursSafe();
+        const dayHours = hours[getDayKeySafe(requestDate)];
 
         if (!dayHours || !dayHours.open) {
           alert("This barber is closed on that day.");
@@ -770,14 +788,13 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           return;
         }
 
-        const requestMins = bookingMinutes(requestTime);
-        if (requestMins < bookingMinutes(dayHours.start) || requestMins >= bookingMinutes(dayHours.end)) {
+        const requestMins = minutesSafe(requestTime);
+        if (requestMins < minutesSafe(dayHours.start) || requestMins >= minutesSafe(dayHours.end)) {
           alert("That time is outside this barber's business hours.");
           await refreshRequestTimeSlots();
           setSendRequestLoading(false);
           return;
         }
-
 
         const duplicate = await hasDuplicatePendingRequest(selected.id, currentUser.uid, requestDate, requestTime);
         if (duplicate) {
@@ -819,3 +836,867 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     }
 
 
+    window.acceptBookingRequest = async function(requestId) {
+      const request = (state.bookingRequests || []).find(r => r.id === requestId);
+      if (!request) return alert("Request not found.");
+
+      try {
+        let clientId = "";
+
+        const existingClientQuery = query(
+          collection(db, "clients"),
+          where("barberId", "==", currentUser.uid),
+          where("phone", "==", request.phone || "__NO_PHONE__"),
+          limit(1)
+        );
+
+        const existingClientSnap = request.phone ? await getDocs(existingClientQuery) : { empty: true, docs: [] };
+
+        if (!existingClientSnap.empty) {
+          clientId = existingClientSnap.docs[0].id;
+        } else {
+          const newClient = await addDoc(collection(db, "clients"), {
+            barberId: currentUser.uid,
+            linkedUserId: request.clientUserId || "",
+            name: request.clientName || "Client",
+            phone: request.phone || "",
+            preferences: "",
+            notes: "Created from booking request.",
+            createdAt: serverTimestamp()
+          });
+          clientId = newClient.id;
+        }
+
+        const appointmentRef = await addDoc(collection(db, "appointments"), {
+          barberId: currentUser.uid,
+          clientId,
+          clientUserId: request.clientUserId || "",
+          clientName: request.clientName || "",
+          date: request.date,
+          time: request.time,
+          service: request.service,
+          notes: request.notes || "",
+          status: "scheduled",
+          source: "bookingRequest",
+          requestId: requestId,
+          clientUserId: request.clientUserId || "",
+          clientName: request.clientName || "",
+          createdAt: serverTimestamp()
+        });
+
+        await updateDoc(doc(db, "bookingRequests", requestId), {
+          status: "accepted",
+          acceptedAt: serverTimestamp(),
+          appointmentId: appointmentRef.id,
+          linkedClientId: clientId
+        });
+
+        alert("Booking accepted and appointment created.");
+      } catch (err) {
+        alert("Accept failed: " + err.message);
+      }
+    }
+
+
+
+    window.cancelAppointment = window.cancelAppointmentAndSync;
+
+
+    window.cancelAppointment = window.cancelAppointmentAndSync;
+
+    
+    window.clearOldBookingRequests = async function() {
+      const oldRequests = (state.bookingRequests || []).filter(r => (r.status || "pending") !== "pending");
+      if (!oldRequests.length) return alert("No old requests to clear.");
+      if (!confirm(`Delete ${oldRequests.length} old request(s)?`)) return;
+
+      try {
+        for (const r of oldRequests) {
+          await deleteDoc(doc(db, "bookingRequests", r.id));
+        }
+      } catch (err) {
+        alert("Clear failed: " + err.message);
+      }
+    }
+
+    window.deleteBookingRequest = async function(requestId) {
+      if (!confirm("Delete this booking request?")) return;
+
+      try {
+        await deleteDoc(doc(db, "bookingRequests", requestId));
+      } catch (err) {
+        alert("Delete failed: " + err.message);
+      }
+    }
+
+
+
+    window.declineBookingRequest = window.confirmDeclineBookingRequest;
+
+    
+    window.openAddClient = function() { openModal("Add Client", `<label>Name</label><input id="clientName" placeholder="Client name" /><label>Phone</label><input id="clientPhone" placeholder="Phone number" /><label>Haircut Preferences</label><textarea id="clientPreferences" placeholder="Example: mid fade, textured top"></textarea><label>Private Notes</label><textarea id="clientNotes" placeholder="Anything useful to remember"></textarea><div class="btn-row"><button class="btn primary" onclick="addClient()">Save Client</button></div>`); }
+    window.addClient = async function() { const name=val("clientName"); if(!name) return alert("Add a client name first."); try { await addDoc(collection(db,"clients"), { barberId:currentUser.uid, name, phone:val("clientPhone"), preferences:val("clientPreferences"), notes:val("clientNotes"), createdAt:serverTimestamp() }); closeModal(); } catch(err) { alert("Client save failed: " + err.message); } }
+    window.openAddCut = function(clientId="") { const selected = clientId || selectedClientId || ""; openModal("Add Cut", `<label>Client</label><select id="cutClient">${state.clients.map(c=>`<option value="${c.id}" ${c.id===selected?"selected":""}>${escapeHtml(c.name)}</option>`).join("")}</select><label>Date</label><input id="cutDate" type="date" value="${getToday()}" /><label>Style</label><input id="cutStyle" placeholder="Example: Mid fade, burst fade, taper" /><label>Tags</label><input id="cutTags" placeholder="mid fade, textured top, beard trim" /><label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;"><input type="checkbox" id="cutPublicToggle" /> Show on Public Profile</label><label>Notes</label><textarea id="cutNotes" placeholder="What guard, shape, blend notes, neckline, etc."></textarea><label>Photos</label><input id="cutPhotos" type="file" accept="image/*" multiple /><div class="btn-row"><button class="btn primary" onclick="addCut()">Save Cut</button></div>`); }
+    window.addCut = async function() { const clientId=val("cutClient"); if(!clientId) return alert("Pick a client first."); try { const files=Array.from($("cutPhotos").files||[]).slice(0,6); const photos=[]; for (const file of files) { const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"-"); const path=`barbers/${currentUser.uid}/clients/${clientId}/cuts/${Date.now()}-${safeName}`; const storageRef=ref(storage,path); await uploadBytes(storageRef,file); photos.push(await getDownloadURL(storageRef)); } await addDoc(collection(db,"cuts"), { barberId:currentUser.uid, clientId, date:val("cutDate")||getToday(), style:val("cutStyle"), tags:val("cutTags"), notes:val("cutNotes"), photos, createdAt:serverTimestamp() }); closeModal(); } catch(err) { alert("Cut save failed: " + err.message); } }
+    window.openAddAppointment = function(clientId="") { const selected = clientId || selectedClientId || ""; openModal("Add Appointment", `<label>Client</label><select id="apptClient">${state.clients.map(c=>`<option value="${c.id}" ${c.id===selected?"selected":""}>${escapeHtml(c.name)}</option>`).join("")}</select><label>Date</label><input id="apptDate" type="date" value="${getToday()}" /><label>Time</label><select id="apptTime">${timeSlotOptions()}</select><label>Service</label><input id="apptService" placeholder="Fade, taper, beard trim, etc." /><label>Notes</label><textarea id="apptNotes" placeholder="Appointment notes"></textarea><div class="btn-row"><button class="btn primary" onclick="addAppointment()">Save Appointment</button></div>`); }
+    window.addAppointment = async function() { const clientId=val("apptClient"); if(!clientId) return alert("Pick a client."); try { await addDoc(collection(db,"appointments"), { barberId:currentUser.uid, clientId, date:val("apptDate")||getToday(), time:val("apptTime")||"09:00", service:val("apptService"), notes:val("apptNotes"), status:"scheduled", createdAt:serverTimestamp() }); closeModal(); } catch(err) { alert("Appointment save failed: " + err.message); } }
+
+    window.markAppointment = async function(id, status) {
+      if (status === "cancelled") {
+        openCancelAppointmentConfirm(id);
+        return;
+      }
+
+      try {
+        await updateDoc(doc(db, "appointments", id), { status });
+      } catch (err) {
+        alert("Appointment update failed: " + err.message);
+      }
+    }
+
+
+    function openEditUsernameModal() {
+      const b = state.barber || {};
+      openModal("Edit Barber Username", `
+        <label>Username</label>
+        <input id="barberUsernameInput" value="${escapeAttr(b.username || "")}" placeholder="devdoescuts" />
+        <p class="muted" style="margin-top:10px;">Use letters, numbers, underscores, or dots. No spaces. Clients will search this like @devdoescuts.</p>
+        <div id="usernameStatus" class="muted" style="margin-top:10px;"></div>
+        <div class="btn-row">
+          <button class="btn secondary" type="button" id="checkUsernameBtn">Check</button>
+          <button class="btn primary" type="button" id="saveUsernameBtn">Save Username</button>
+        </div>
+      `);
+
+      document.getElementById("checkUsernameBtn")?.addEventListener("click", checkUsernameAvailability);
+      document.getElementById("saveUsernameBtn")?.addEventListener("click", saveUsername);
+    }
+
+    window.openEditUsername = openEditUsernameModal;
+
+
+    function cleanUsername(raw) {
+      return String(raw || "")
+        .trim()
+        .replace(/^@+/, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9._]/g, "");
+    }
+
+    window.checkUsernameAvailability = async function() {
+      const username = cleanUsername(val("barberUsernameInput"));
+      const status = document.getElementById("usernameStatus");
+      if (!username || username.length < 3) {
+        status.textContent = "Username must be at least 3 characters.";
+        return false;
+      }
+
+      const taken = await isUsernameTaken(username);
+      if (taken && state.barber?.usernameLower !== username) {
+        status.textContent = "That username is already taken.";
+        return false;
+      }
+
+      status.textContent = "Username is available.";
+      return true;
+    }
+
+    async function isUsernameTaken(username) {
+      const q = query(collection(db, "barbers"), where("usernameLower", "==", username), limit(1));
+      const snap = await getDocs(q);
+      if (snap.empty) return false;
+      return snap.docs.some(d => d.id !== currentUser.uid);
+    }
+
+    window.saveUsername = async function() {
+      try {
+        const username = cleanUsername(val("barberUsernameInput"));
+        if (!username || username.length < 3) return alert("Username must be at least 3 characters.");
+
+        const taken = await isUsernameTaken(username);
+        if (taken && state.barber?.usernameLower !== username) {
+          return alert("That username is already taken.");
+        }
+
+        await setDoc(doc(db, "barbers", currentUser.uid), {
+          username,
+          usernameLower: username,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        closeModal();
+      } catch (err) {
+        alert("Username save failed: " + err.message);
+      }
+    }
+
+    window.openFindBarber = function() {
+      setPage("clients");
+      setTimeout(() => document.getElementById("barberSearchInput")?.focus(), 100);
+    }
+
+
+    
+    async function loadPublicPortfolio(barberId) {
+      try {
+        const q = query(
+          collection(db, "cuts"),
+          where("barberId", "==", barberId),
+          where("publicPortfolio", "==", true)
+        );
+
+        const snap = await getDocs(q);
+        const items = [];
+
+        snap.forEach(docSnap => {
+          const data = docSnap.data();
+          if (Array.isArray(data.photos) && data.photos.length) {
+            items.push({
+              id: docSnap.id,
+              createdAt: data.createdAt?.seconds || 0,
+              clientName: data.clientName || "Client",
+              photos: data.photos
+            });
+          }
+        });
+
+        items.sort((a,b)=>b.createdAt-a.createdAt);
+        return items;
+      } catch (err) {
+        console.error("Portfolio load failed:", err);
+        return [];
+      }
+    }
+
+    function renderPortfolioGrid(items) {
+      if (!items.length) {
+        return `<div class="portfolio-empty">No portfolio cuts added yet.</div>`;
+      }
+
+      return `
+        <div class="portfolio-grid">
+          ${items.map(item => `
+            <button class="portfolio-item" onclick="openPortfolioImage('${escapeAttr(item.photos[0])}', '${escapeAttr(item.clientName)}')">
+              <img src="${escapeAttr(item.photos[0])}" alt="Cut photo" />
+              <div class="portfolio-badge">${escapeHtml(item.clientName)}</div>
+            </button>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    window.openPortfolioImage = function(src, clientName) {
+      openModal(clientName || "Portfolio", `
+        <img src="${escapeAttr(src)}" style="width:100%;border-radius:18px;border:1px solid var(--border);" />
+      `);
+    }
+
+
+    function barberServicesArray(barber) {
+      return (barber?.services || "")
+        .split(",")
+        .map(s => s.trim())
+        .filter(Boolean);
+    }
+
+    function renderBarberProfileMarkup(barber) {
+      const services = barberServicesArray(barber);
+      const isSelected = state.userProfile?.selectedBarberId === barber.id;
+
+      return `
+        <button class="btn secondary" onclick="backToFindBarber()">← Back to Search</button>
+
+        <div class="barber-profile-cover" style="margin-top:12px;"></div>
+        <div class="card barber-profile-card">
+          <div class="profile-hero">
+            <div class="avatar">${initials(barber.name || "BC")}</div>
+            <div>
+              <h2>${escapeHtml(barber.name || "Barber")}</h2>
+              <p class="profile-handle">@${escapeHtml(barber.username || barber.usernameLower || "")}</p>
+              <p class="muted">${escapeHtml(barber.shopName || "Independent Barber")}</p>
+            </div>
+          </div>
+
+          <br>
+          <p class="muted">${escapeHtml(barber.location || "Location not set")}</p>
+          <p class="muted" style="margin-top:8px;">${escapeHtml(barber.bio || "No bio added yet.")}</p>
+
+          <div class="service-list">
+            ${services.length ? services.map(s => `<span class="pill">${escapeHtml(s)}</span>`).join("") : `<span class="pill">Services not listed</span>`}
+          </div>
+
+          <div class="profile-actions">
+            <button class="btn ${isSelected ? "secondary" : "primary"}" onclick="selectBarberFromProfile()">${isSelected ? "Current Barber" : "Add Barber"}</button>
+            <button class="btn secondary" onclick="bookFromViewedProfile()">Book</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Portfolio</h2>
+          <div id="publicPortfolioContainer">
+            <div class="empty">Loading portfolio...</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderViewedBarberProfile() {
+      $("clients").innerHTML = renderBarberProfileMarkup(viewedBarber);
+      loadPublicPortfolio(viewedBarber.id).then(items => {
+        const container = document.getElementById("publicPortfolioContainer");
+        if (container) container.innerHTML = renderPortfolioGrid(items);
+      });
+    }
+
+    window.backToFindBarber = function() {
+      viewedBarber = null;
+      renderClients();
+    }
+
+    window.viewSelectedBarberProfile = async function() {
+      const selected = state.userProfile?.selectedBarber;
+      if (!selected?.id) return alert("No barber selected.");
+
+      try {
+        const snap = await getDoc(doc(db, "barbers", selected.id));
+        if (!snap.exists()) return alert("Barber profile not found.");
+        viewedBarber = { id: snap.id, ...snap.data() };
+        renderClients();
+      } catch (err) {
+        alert("Could not open barber profile: " + err.message);
+      }
+    }
+
+    window.selectBarberFromProfile = async function() {
+      if (!viewedBarber?.id) return alert("No barber profile open.");
+
+      await setDoc(doc(db, "users", currentUser.uid), {
+        selectedBarberId: viewedBarber.id,
+        selectedBarber: {
+          id: viewedBarber.id,
+          username: viewedBarber.username || viewedBarber.usernameLower || "",
+          name: viewedBarber.name || "Barber",
+          shopName: viewedBarber.shopName || ""
+        },
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      alert(`Added @${viewedBarber.username || viewedBarber.usernameLower || "barber"} as your barber.`);
+      setPage("dashboard");
+    }
+
+    window.bookFromViewedProfile = async function() {
+      if (!viewedBarber?.id) return alert("No barber profile open.");
+
+      await setDoc(doc(db, "users", currentUser.uid), {
+        selectedBarberId: viewedBarber.id,
+        selectedBarber: {
+          id: viewedBarber.id,
+          username: viewedBarber.username || viewedBarber.usernameLower || "",
+          name: viewedBarber.name || "Barber",
+          shopName: viewedBarber.shopName || ""
+        },
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      setTimeout(() => openRequestBooking(), 200);
+    }
+
+
+    window.searchBarberUsername = async function() {
+      const input = document.getElementById("barberSearchInput");
+      const results = document.getElementById("barberSearchResults");
+      const username = cleanUsername(input?.value || "");
+
+      if (!username) {
+        results.innerHTML = `<p class="error">Enter a barber username first.</p>`;
+        return;
+      }
+
+      try {
+        results.innerHTML = `<p class="muted">Searching...</p>`;
+        const q = query(collection(db, "barbers"), where("usernameLower", "==", username), limit(1));
+        const snap = await getDocs(q);
+
+        if (snap.empty) {
+          results.innerHTML = `<div class="empty">No barber found for @${escapeHtml(username)}</div>`;
+          return;
+        }
+
+        const docSnap = snap.docs[0];
+        const barber = { id: docSnap.id, ...docSnap.data() };
+
+        results.innerHTML = `
+          <div class="search-result">
+            <h3>${escapeHtml(barber.name || "Barber")}</h3>
+            <p class="muted">${escapeHtml(barber.shopName || "")}</p>
+            <p class="muted">@${escapeHtml(barber.username || username)}</p>
+            <div class="btn-row">
+              <button class="btn primary" onclick="openBarberProfileFromSearch('${docSnap.id}')">View Profile</button>
+              <button class="btn secondary" onclick="selectBarber('${docSnap.id}', '${escapeAttr(barber.username || username)}', '${escapeAttr(barber.name || "Barber")}', '${escapeAttr(barber.shopName || "")}')">Add</button>
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        results.innerHTML = `<p class="error">Search failed: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+
+    window.openBarberProfileFromSearch = async function(barberId) {
+      try {
+        const snap = await getDoc(doc(db, "barbers", barberId));
+        if (!snap.exists()) return alert("Barber profile not found.");
+        viewedBarber = { id: snap.id, ...snap.data() };
+        renderClients();
+      } catch (err) {
+        alert("Could not open profile: " + err.message);
+      }
+    }
+
+
+    window.selectBarber = async function(barberId, username, name, shopName) {
+      try {
+        await setDoc(doc(db, "users", currentUser.uid), {
+          selectedBarberId: barberId,
+          selectedBarber: { id: barberId, username, name, shopName },
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        alert(`Selected @${username} as your barber.`);
+        setPage("dashboard");
+      } catch (err) {
+        alert("Could not select barber: " + err.message);
+      }
+    }
+
+
+    window.cancelAppointmentAndSync = window.openCancelAppointmentConfirm;
+    window.cancelAppointment = window.openCancelAppointmentConfirm;
+
+    window.openDeclineRequestConfirm = function(requestId) {
+      const request = (state.bookingRequests || []).find(r => r.id === requestId);
+      const label = request
+        ? `${request.service || "Booking request"} from ${request.clientName || "Client"} on ${formatDate(request.date)} at ${formatTime(request.time)}`
+        : "this booking request";
+
+      openModal("Decline Request?", `
+        <p class="muted">Are you sure you want to decline this booking request?</p>
+        <br>
+        <p><strong>${escapeHtml(label)}</strong></p>
+        <p class="muted" style="margin-top:10px;">The client will see this as declined.</p>
+        <div class="btn-row">
+          <button class="btn secondary" type="button" onclick="closeModal()">Keep Request</button>
+          <button class="btn danger" type="button" onclick="performDeclineBookingRequest('${requestId}')">Yes, Decline</button>
+        </div>
+      `);
+    }
+
+    window.performDeclineBookingRequest = async function(requestId) {
+      try {
+        await updateDoc(doc(db, "bookingRequests", requestId), {
+          status: "declined",
+          declinedAt: serverTimestamp(),
+          declinedBy: "barber"
+        });
+
+        state.bookingRequests = (state.bookingRequests || []).map(r => {
+          if (r.id === requestId) return { ...r, status: "declined" };
+          return r;
+        });
+
+        closeModal();
+        render();
+        alert("Request declined.");
+      } catch (err) {
+        alert("Decline failed: " + err.message);
+      }
+    }
+
+    window.confirmDeclineBookingRequest = window.openDeclineRequestConfirm;
+    window.declineBookingRequest = window.openDeclineRequestConfirm;
+
+    
+
+    window.openProfileMenu = function() {
+      openModal("Profile Menu", `
+        <div class="list">
+          <button class="btn secondary" type="button" onclick="closeModal(); openEditAccount();">Edit Account Info</button>
+          <button class="btn secondary" type="button" onclick="closeModal(); openEditUsername();">Edit Username</button>
+          <button class="btn danger" type="button" onclick="logout()">Logout</button>
+        </div>
+      `);
+    }
+
+
+
+    function businessHoursPreviewDefaults() {
+      return {
+        monday: { open: true, start: "09:00", end: "17:00" },
+        tuesday: { open: true, start: "09:00", end: "17:00" },
+        wednesday: { open: true, start: "09:00", end: "17:00" },
+        thursday: { open: true, start: "09:00", end: "17:00" },
+        friday: { open: true, start: "09:00", end: "17:00" },
+        saturday: { open: false, start: "09:00", end: "17:00" },
+        sunday: { open: false, start: "09:00", end: "17:00" }
+      };
+    }
+
+    function businessHoursTimeLabel(time) {
+      try {
+        const d = new Date(`2000-01-01T${time}:00`);
+        return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      } catch {
+        return time;
+      }
+    }
+
+    function businessHoursTimeOptions(selected = "09:00") {
+      let output = "";
+      for (let hour = 5; hour <= 23; hour++) {
+        for (const minute of [0, 30]) {
+          const value = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+          output += `<option value="${value}" ${value === selected ? "selected" : ""}>${businessHoursTimeLabel(value)}</option>`;
+        }
+      }
+      return output;
+    }
+
+    function businessHoursDayLabel(day) {
+      return day.charAt(0).toUpperCase() + day.slice(1);
+    }
+
+    window.openBusinessHoursPreview = function() {
+      const hours = { ...businessHoursPreviewDefaults(), ...(state.barber?.businessHours || {}) };
+      const days = Object.keys(hours);
+
+      openModal("Business Hours", `
+        <p class="muted">Set your weekly availability. Clients will use this in the next version.</p>
+        <div class="list">
+          ${days.map(day => `
+            <div class="card" style="background:#0b0b0b;margin-bottom:8px;">
+              <label style="display:flex;align-items:center;gap:10px;margin:0 0 12px;text-transform:none;letter-spacing:0;">
+                <input type="checkbox" id="preview_${day}_open" ${hours[day].open ? "checked" : ""} style="width:auto;" />
+                ${businessHoursDayLabel(day)}
+              </label>
+              <div class="grid grid-2">
+                <div>
+                  <label>Start</label>
+                  <select id="preview_${day}_start">${businessHoursTimeOptions(hours[day].start)}</select>
+                </div>
+                <div>
+                  <label>End</label>
+                  <select id="preview_${day}_end">${businessHoursTimeOptions(hours[day].end)}</select>
+                </div>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+        <div class="btn-row">
+          <button class="btn secondary" type="button" onclick="closeModal()">Close</button>
+          <button class="btn primary" type="button" onclick="saveBusinessHours()">Save Hours</button>
+        </div>
+      `);
+    }
+
+
+
+    window.saveBusinessHours = async function() {
+      try {
+        const base = businessHoursPreviewDefaults();
+        const output = {};
+
+        function mins(time) {
+          const [h, m] = String(time || "00:00").split(":").map(Number);
+          return (h * 60) + (m || 0);
+        }
+
+        for (const day of Object.keys(base)) {
+          const open = document.getElementById(`preview_${day}_open`)?.checked || false;
+          const start = document.getElementById(`preview_${day}_start`)?.value || base[day].start;
+          const end = document.getElementById(`preview_${day}_end`)?.value || base[day].end;
+
+          if (open && mins(end) <= mins(start)) {
+            return alert(`${businessHoursDayLabel(day)} end time must be after start time.`);
+          }
+
+          output[day] = { open, start, end };
+        }
+
+        await setDoc(doc(db, "barbers", currentUser.uid), {
+          businessHours: output,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        if (!state.barber) state.barber = {};
+        state.barber.businessHours = output;
+
+        closeModal();
+        alert("Business hours saved.");
+        renderProfile();
+      } catch (err) {
+        alert("Could not save business hours: " + err.message);
+      }
+    }
+
+
+
+    function getDefaultBusinessHoursSafe() {
+      if (typeof businessHoursPreviewDefaults === "function") return businessHoursPreviewDefaults();
+      return {
+        monday: { open: true, start: "09:00", end: "17:00" },
+        tuesday: { open: true, start: "09:00", end: "17:00" },
+        wednesday: { open: true, start: "09:00", end: "17:00" },
+        thursday: { open: true, start: "09:00", end: "17:00" },
+        friday: { open: true, start: "09:00", end: "17:00" },
+        saturday: { open: false, start: "09:00", end: "17:00" },
+        sunday: { open: false, start: "09:00", end: "17:00" }
+      };
+    }
+
+    function getDayKeySafe(dateStr) {
+      if (!dateStr) return "";
+      const day = new Date(dateStr + "T00:00:00").getDay();
+      return ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][day];
+    }
+
+    function minutesSafe(time) {
+      const parts = String(time || "00:00").split(":");
+      return (Number(parts[0] || 0) * 60) + Number(parts[1] || 0);
+    }
+
+    function timeSafe(total) {
+      const h = Math.floor(total / 60);
+      const m = total % 60;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    }
+
+    function timeLabelSafe(time) {
+      try {
+        return new Date(`2000-01-01T${time}:00`).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      } catch {
+        return time;
+      }
+    }
+
+    async function loadSelectedBarberHoursSafe() {
+      const selected = state.userProfile?.selectedBarber;
+      const defaults = getDefaultBusinessHoursSafe();
+      if (!selected?.id) return defaults;
+
+      try {
+        const snap = await getDoc(doc(db, "barbers", selected.id));
+        const saved = snap.exists() ? snap.data().businessHours : null;
+        return { ...defaults, ...(saved || {}) };
+      } catch (err) {
+        console.error("Business hours load failed", err);
+        return defaults;
+      }
+    }
+
+    function buildTimeOptionsFromHoursSafe(dayHours, unavailableTimes = new Set(), selectedValue = "") {
+      if (!dayHours || !dayHours.open) {
+        return `<option value="">Closed this day</option>`;
+      }
+
+      const start = minutesSafe(dayHours.start);
+      const end = minutesSafe(dayHours.end);
+      let options = "";
+
+      for (let mins = start; mins < end; mins += 30) {
+        const value = timeSafe(mins);
+        const disabled = unavailableTimes.has(value) && value !== selectedValue;
+        options += `<option value="${value}" ${value === selectedValue ? "selected" : ""} ${disabled ? "disabled" : ""}>${timeLabelSafe(value)}${disabled ? " — unavailable" : ""}</option>`;
+      }
+
+      return options || `<option value="">No slots available</option>`;
+    }
+
+
+    
+    function tlDefaultBusinessHours() {
+      if (typeof businessHoursPreviewDefaults === "function") return businessHoursPreviewDefaults();
+      return {
+        monday: { open: true, start: "09:00", end: "17:00" },
+        tuesday: { open: true, start: "09:00", end: "17:00" },
+        wednesday: { open: true, start: "09:00", end: "17:00" },
+        thursday: { open: true, start: "09:00", end: "17:00" },
+        friday: { open: true, start: "09:00", end: "17:00" },
+        saturday: { open: false, start: "09:00", end: "17:00" },
+        sunday: { open: false, start: "09:00", end: "17:00" }
+      };
+    }
+
+    function tlDayKey(dateStr) {
+      if (!dateStr) return "";
+      const d = new Date(dateStr + "T00:00:00");
+      return ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][d.getDay()];
+    }
+
+    function tlMinutes(time) {
+      const [h, m] = String(time || "00:00").split(":").map(Number);
+      return (h * 60) + (m || 0);
+    }
+
+    function tlTimeFromMinutes(total) {
+      const h = Math.floor(total / 60);
+      const m = total % 60;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    }
+
+    function tlTimeLabel(time) {
+      try {
+        return new Date(`2000-01-01T${time}:00`).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      } catch {
+        return time;
+      }
+    }
+
+    async function tlLoadSelectedBarberHours() {
+      const selected = state.userProfile?.selectedBarber;
+      const defaults = tlDefaultBusinessHours();
+
+      if (!selected?.id) return defaults;
+
+      try {
+        const snap = await getDoc(doc(db, "barbers", selected.id));
+        const saved = snap.exists() ? snap.data().businessHours : null;
+        return { ...defaults, ...(saved || {}) };
+      } catch (err) {
+        console.error(err);
+        return defaults;
+      }
+    }
+
+    function tlBuildTimeOptions(dayHours, unavailableTimes = new Set(), currentValue = "") {
+      if (!dayHours || !dayHours.open) {
+        return `<option value="">Closed this day</option>`;
+      }
+
+      const start = tlMinutes(dayHours.start);
+      const end = tlMinutes(dayHours.end);
+
+      let options = "";
+
+      for (let mins = start; mins < end; mins += 30) {
+        const value = tlTimeFromMinutes(mins);
+        const disabled = unavailableTimes.has(value) && value !== currentValue;
+
+        options += `<option value="${value}" ${disabled ? "disabled" : ""}>${tlTimeLabel(value)}${disabled ? " — unavailable" : ""}</option>`;
+      }
+
+      return options || `<option value="">No slots available</option>`;
+    }
+
+
+function showRuntimeError(message) { console.error(message); $("syncStatus").textContent="Sync Error"; alert(message); }
+    function val(id) { return $(id)?.value.trim() || ""; }
+    function getToday() { return new Date().toISOString().split("T")[0]; }
+    function formatDate(dateStr) { if(!dateStr) return "No date"; const d=new Date(dateStr+"T00:00:00"); return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); }
+    function initials(name) { return (name||"BC").split(" ").map(n=>n[0]).slice(0,2).join("").toUpperCase(); }
+    function escapeHtml(str="") { return String(str).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
+    function escapeAttr(str="") { return escapeHtml(str).replaceAll("\n"," "); }
+    function cleanFirebaseError(msg) { return msg.replace("Firebase: ","").replace(/\s*\(auth\/.+?\)\.?/,""); }
+
+    window.openCancelAppointmentConfirm = function(appointmentId) {
+      const appt = (state.appointments || []).find(a => a.id === appointmentId);
+      if (!appt) return alert("Appointment not found.");
+
+      const client = clientById(appt.clientId);
+      const clientName = appt.clientName || client?.name || "Client";
+      const label = `${appt.service || "Appointment"} with ${clientName} on ${formatDate(appt.date)} at ${formatTime(appt.time)}`;
+
+      openModal("Cancel Appointment?", `
+        <p class="muted">Are you sure you want to cancel this appointment?</p>
+        <br>
+        <p><strong>${escapeHtml(label)}</strong></p>
+        <p class="muted" style="margin-top:10px;">This will remove it from your schedule and update the client booking status if this came from a request.</p>
+        <div class="btn-row">
+          <button class="btn secondary" type="button" onclick="closeModal()">Keep Appointment</button>
+          <button class="btn danger" type="button" onclick="performCancelAppointment('${appointmentId}')">Yes, Cancel</button>
+        </div>
+      `);
+    }
+
+    window.performCancelAppointment = async function(appointmentId) {
+      const appt = (state.appointments || []).find(a => a.id === appointmentId);
+      if (!appt) {
+        closeModal();
+        return alert("Appointment not found.");
+      }
+
+      try {
+        await updateDoc(doc(db, "appointments", appointmentId), {
+          status: "cancelled",
+          cancelledAt: serverTimestamp(),
+          cancelledBy: "barber"
+        });
+
+        let requestIdToUpdate = appt.requestId || "";
+
+        if (!requestIdToUpdate) {
+          const byAppointmentSnap = await getDocs(query(
+            collection(db, "bookingRequests"),
+            where("appointmentId", "==", appointmentId),
+            limit(1)
+          ));
+
+          if (!byAppointmentSnap.empty) {
+            requestIdToUpdate = byAppointmentSnap.docs[0].id;
+          }
+        }
+
+        if (!requestIdToUpdate) {
+          const fallbackSnap = await getDocs(query(
+            collection(db, "bookingRequests"),
+            where("barberId", "==", currentUser.uid),
+            where("date", "==", appt.date),
+            where("time", "==", appt.time)
+          ));
+
+          const client = clientById(appt.clientId);
+
+          const match = fallbackSnap.docs.find(d => {
+            const r = d.data();
+            const activeStatus = ["accepted", "pending"].includes(r.status || "pending");
+            const sameService = !appt.service || !r.service || r.service === appt.service;
+            const sameClientUser = appt.clientUserId && r.clientUserId === appt.clientUserId;
+            const sameClientName = (appt.clientName && r.clientName === appt.clientName) || (client?.name && r.clientName === client.name);
+            const samePhone = client?.phone && r.phone === client.phone;
+            return activeStatus && sameService && (sameClientUser || sameClientName || samePhone);
+          });
+
+          if (match) requestIdToUpdate = match.id;
+        }
+
+        if (requestIdToUpdate) {
+          await updateDoc(doc(db, "bookingRequests", requestIdToUpdate), {
+            status: "cancelled",
+            cancelledAt: serverTimestamp(),
+            cancelledBy: "barber",
+            appointmentId
+          });
+        }
+
+        state.appointments = (state.appointments || []).filter(a => a.id !== appointmentId);
+        state.bookingRequests = (state.bookingRequests || []).map(r => {
+          if (r.id === requestIdToUpdate) return { ...r, status: "cancelled" };
+          return r;
+        });
+
+        closeModal();
+        render();
+
+        alert(requestIdToUpdate ? "Appointment cancelled. Client status updated." : "Appointment cancelled. No linked request was found to update.");
+      } catch (err) {
+        alert("Cancel failed: " + err.message);
+      }
+    }
+
+    window.cancelAppointment = window.openCancelAppointmentConfirm;
+    window.cancelAppointmentAndSync = window.openCancelAppointmentConfirm;
+
+
+  </script>
+</body>
+</html>
