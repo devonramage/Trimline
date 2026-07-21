@@ -70,6 +70,8 @@
     .portfolio-item img{width:100%;height:100%;object-fit:cover;display:block}
     .portfolio-empty{padding:18px;border:1px dashed var(--border);border-radius:16px;color:#aaa;text-align:center}
     .portfolio-badge{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.72);padding:5px 9px;border-radius:999px;font-size:11px;font-weight:700}
+    .legal-links{margin-top:16px;text-align:center;color:var(--muted);font-size:12px;line-height:1.5}.legal-links a{color:#d8d8d8;text-decoration:underline;text-underline-offset:3px}
+    .consent-row{display:flex;align-items:flex-start;gap:10px;margin-top:16px;text-transform:none;letter-spacing:0;font-size:13px;line-height:1.45;color:#ddd;cursor:pointer}.consent-row input{width:20px;height:20px;margin:0;flex:0 0 auto;accent-color:#fff}.consent-row a{color:#fff;text-decoration:underline;text-underline-offset:3px}
   </style>
 <meta name="trimline-version" content="TRIMLINE_SAFE_NAV_V3">
 <meta name="trimline-version" content="TRIMLINE_BUSINESS_HOURS_SAVE_V04">
@@ -85,6 +87,7 @@
       <div class="btn-row"><button class="btn secondary google-btn" id="googleLoginBtn">Continue with Google</button></div>
       <p class="muted" style="margin-top:14px;">Don't have an account? <button class="auth-link" id="showSignupBtn">Sign up</button></p>
       <p id="loginError" class="error"></p>
+      <p class="legal-links"><a href="terms.html">Terms of Service</a> · <a href="privacy.html">Privacy Policy</a></p>
     </div>
   </div>
 
@@ -101,8 +104,10 @@
         <div class="role-card active" id="signupBarberRole" onclick="toggleSignupRole('barber')"><strong>Barber</strong><p class="muted">Manage clients, cuts, and schedule.</p></div>
         <div class="role-card" id="signupClientRole" onclick="toggleSignupRole('client')"><strong>Client</strong><p class="muted">View cuts and request bookings.</p></div>
       </div>
+      <label class="consent-row"><input id="signupLegalConsent" type="checkbox" /><span>I agree to the <a href="terms.html">Terms of Service</a> and acknowledge the <a href="privacy.html">Privacy Policy</a>.</span></label>
       <div class="btn-row"><button class="btn primary" id="signupBtn">Create Account</button></div>
       <div class="btn-row"><button class="btn secondary google-btn" id="googleSignupBtn">Continue with Google</button></div>
+      <p class="legal-links">Agreement is required before creating an account.</p>
       <p class="muted" style="margin-top:14px;">Already have an account? <button class="auth-link" id="showLoginBtn">Login</button></p>
       <p id="signupError" class="error"></p>
     </div>
@@ -119,6 +124,7 @@
         <button type="button" class="role-card active" id="setupBarberRole" onclick="toggleSetupRole('barber')"><strong>Barber</strong><p class="muted">Full barber dashboard.</p></button>
         <button type="button" class="role-card" id="setupClientRole" onclick="toggleSetupRole('client')"><strong>Client</strong><p class="muted">Client dashboard.</p></button>
       </div>
+      <label class="consent-row"><input id="setupLegalConsent" type="checkbox" /><span>I agree to the <a href="terms.html">Terms of Service</a> and acknowledge the <a href="privacy.html">Privacy Policy</a>.</span></label>
       <div class="btn-row"><button type="button" class="btn primary" id="finishSetupBtn">Finish Setup</button></div>
       <p id="setupError" class="error"></p>
     </div>
@@ -172,7 +178,7 @@
     if (!isConfigured) {
       $("loginError").textContent = "Firebase config missing.";
     } else {
-      $("loginBtn").onclick = login; $("signupBtn").onclick = signup; $("googleLoginBtn").onclick = googleSignIn; $("googleSignupBtn").onclick = googleSignIn;
+      $("loginBtn").onclick = login; $("signupBtn").onclick = signup; $("googleLoginBtn").onclick = googleSignIn; $("googleSignupBtn").onclick = googleSignup;
       $("showSignupBtn").onclick = () => showAuth("signup"); $("showLoginBtn").onclick = () => showAuth("login"); $("finishSetupBtn").onclick = finishRoleSetup;
 
 
@@ -203,13 +209,14 @@
     function toggleRole(list, role) { return list.includes(role) ? list.filter(r => r !== role) : [...list, role]; }
 
     async function login() { $("loginError").textContent = ""; try { await signInWithEmailAndPassword(auth, val("loginEmail"), val("loginPassword")); } catch(err) { $("loginError").textContent = cleanFirebaseError(err.message); } }
-    async function signup() { $("signupError").textContent = ""; try { const cred = await createUserWithEmailAndPassword(auth, val("signupEmail"), val("signupPassword")); await createUserProfile(cred.user, val("signupName"), signupRoles, val("signupPhone")); } catch(err) { $("signupError").textContent = cleanFirebaseError(err.message); } }
+    async function signup() { $("signupError").textContent = ""; if (!$("signupLegalConsent")?.checked) { $("signupError").textContent = "You must agree to the Terms of Service and acknowledge the Privacy Policy."; return; } try { const cred = await createUserWithEmailAndPassword(auth, val("signupEmail"), val("signupPassword")); await createUserProfile(cred.user, val("signupName"), signupRoles, val("signupPhone")); } catch(err) { $("signupError").textContent = cleanFirebaseError(err.message); } }
+    async function googleSignup() { $("signupError").textContent = ""; if (!$("signupLegalConsent")?.checked) { $("signupError").textContent = "You must agree to the Terms of Service and acknowledge the Privacy Policy."; return; } await googleSignIn(); }
     async function googleSignIn() { $("loginError").textContent = ""; $("signupError").textContent = ""; try { const provider = new GoogleAuthProvider(); const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent); if (isMobile) { await signInWithRedirect(auth, provider); } else { await signInWithPopup(auth, provider); } } catch(err) { $("loginError").textContent = cleanFirebaseError(err.message || "Google sign in failed"); $("signupError").textContent = cleanFirebaseError(err.message || "Google sign in failed"); } }
-    async function finishRoleSetup() { $("setupError").textContent = ""; try { await createUserProfile(currentUser, val("setupName") || currentUser.displayName || "New User", setupRoles, val("setupPhone")); } catch(err) { $("setupError").textContent = cleanFirebaseError(err.message); } }
+    async function finishRoleSetup() { $("setupError").textContent = ""; if (!$("setupLegalConsent")?.checked) { $("setupError").textContent = "You must agree to the Terms of Service and acknowledge the Privacy Policy."; return; } try { await createUserProfile(currentUser, val("setupName") || currentUser.displayName || "New User", setupRoles, val("setupPhone")); } catch(err) { $("setupError").textContent = cleanFirebaseError(err.message); } }
 
     async function createUserProfile(user, name, roles, phone = "") {
       const activeMode = roles.includes("barber") ? "barber" : "client";
-      await setDoc(doc(db, "users", user.uid), { uid:user.uid, email:user.email, name:name || user.displayName || "New User", phone: phone || "", roles, activeMode, createdAt:serverTimestamp() }, { merge:true });
+      await setDoc(doc(db, "users", user.uid), { uid:user.uid, email:user.email, name:name || user.displayName || "New User", phone: phone || "", roles, activeMode, termsVersion:"2026-07-21", termsAcceptedAt:serverTimestamp(), privacyVersion:"2026-07-21", privacyAcknowledgedAt:serverTimestamp(), createdAt:serverTimestamp() }, { merge:true });
       if (roles.includes("barber")) await setDoc(doc(db, "barbers", user.uid), { uid:user.uid, email:user.email, name:name || user.displayName || "New Barber", shopName:"Barber Connect Studio", location:"", bio:"Edit your barber profile.", services:"Fade, Taper, Beard Trim", username:"", usernameLower:"", createdAt:serverTimestamp() }, { merge:true });
     }
     async function ensureModeData() {
