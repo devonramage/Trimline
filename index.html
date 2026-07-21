@@ -545,6 +545,15 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     window.viewClient = function(id) { selectedClientId=id; activePage="clients"; $("pageTitle").textContent="Client Profile"; document.querySelectorAll(".page").forEach(p=>p.classList.remove("active")); $("clients").classList.add("active"); document.querySelectorAll(".nav-btn").forEach(btn=>btn.classList.toggle("active", btn.dataset.page==="clients")); renderClients(); }
     window.backToClients = function() { selectedClientId=null; $("pageTitle").textContent="Clients"; renderClients(); }
     window.closeModal = function() { $("modal").classList.remove("active"); $("modalBody").innerHTML=""; }
+    window.logout = async function() {
+      try {
+        closeModal();
+        await signOut(auth);
+      } catch (err) {
+        alert("Could not log out. Please try again.");
+        console.error(err);
+      }
+    }
     $("modal").addEventListener("click", e => { if (e.target.id==="modal") closeModal(); });
     function openModal(title, body) { $("modalTitle").textContent=title; $("modalBody").innerHTML=body; $("modal").classList.add("active"); }
 
