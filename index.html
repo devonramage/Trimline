@@ -588,18 +588,54 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
       return unavailable;
     }
 
-        function timeSlotOptionsWithUnavailable(unavailableTimes = new Set(), selectedValue = "") {
+    const bookingDayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+    function bookingTimeToMinutes(time = "") {
+      const [hour, minute] = String(time).split(":").map(Number);
+      return (hour * 60) + (minute || 0);
+    }
+
+    function bookingDayForDate(date = "") {
+      const parsed = new Date(`${date}T12:00:00`);
+      return bookingDayNames[parsed.getDay()];
+    }
+
+    async function getBarberBusinessHoursForDate(barberId, date) {
+      if (!barberId || !date) return null;
+      const barberSnap = await getDoc(doc(db, "barbers", barberId));
+      if (!barberSnap.exists()) return null;
+      const businessHours = barberSnap.data().businessHours;
+      if (!businessHours) return null;
+      return businessHours[bookingDayForDate(date)] || null;
+    }
+
+    function isTimeWithinBusinessHours(time, hours) {
+      if (!hours) return true;
+      if (!hours.open) return false;
+      const timeMinutes = bookingTimeToMinutes(time);
+      return timeMinutes >= bookingTimeToMinutes(hours.start)
+        && timeMinutes < bookingTimeToMinutes(hours.end);
+    }
+
+    function timeSlotOptionsWithUnavailable(unavailableTimes = new Set(), selectedValue = "", hours = null) {
+      const effectiveHours = hours || { open:true, start:"06:00", end:"23:00" };
+      if (!effectiveHours.open) return '<option value="">Closed</option>';
+
       const slots = [];
-      for (let hour = 6; hour <= 22; hour++) {
-        for (let minute of [0, 30]) {
-          const value = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-          const labelDate = new Date(`2000-01-01T${value}:00`);
-          const label = labelDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-          const disabled = unavailableTimes.has(value) && value !== selectedValue;
-          slots.push(`<option value="${value}" ${value === selectedValue ? "selected" : ""} ${disabled ? "disabled" : ""}>${label}${disabled ? " — unavailable" : ""}</option>`);
-        }
+      const startMinutes = bookingTimeToMinutes(effectiveHours.start);
+      const endMinutes = bookingTimeToMinutes(effectiveHours.end);
+
+      for (let total = startMinutes; total < endMinutes; total += 30) {
+        const hour = Math.floor(total / 60);
+        const minute = total % 60;
+        const value = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+        const labelDate = new Date(`2000-01-01T${value}:00`);
+        const label = labelDate.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+        const disabled = unavailableTimes.has(value);
+        slots.push(`<option value="${value}" ${value === selectedValue ? "selected" : ""} ${disabled ? "disabled" : ""}>${label}${disabled ? " — unavailable" : ""}</option>`);
       }
-      return slots.join("");
+
+      return slots.length ? slots.join("") : '<option value="">No available times</option>';
     }
 
     async function refreshRequestTimeSlots() {
@@ -612,18 +648,31 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
 
       try {
         if (note) note.textContent = "Checking availability...";
-        const unavailable = await getUnavailableTimesForBarber(selected.id, date);
-        const currentValue = timeSelect.value;
-        timeSelect.innerHTML = timeSlotOptionsWithUnavailable(unavailable, currentValue);
 
-        const availableCount = Array.from(timeSelect.options).filter(o => !o.disabled).length;
-        if (note) note.textContent = availableCount ? `${availableCount} time slots available.` : "No available time slots for this day.";
+        const [unavailable, hours] = await Promise.all([
+          getUnavailableTimesForBarber(selected.id, date),
+          getBarberBusinessHoursForDate(selected.id, date)
+        ]);
+
+        const currentValue = timeSelect.value;
+        timeSelect.innerHTML = timeSlotOptionsWithUnavailable(unavailable, currentValue, hours);
+
+        const bookableOptions = Array.from(timeSelect.options).filter(option => option.value && !option.disabled);
+        timeSelect.disabled = bookableOptions.length === 0;
+
+        if (hours && !hours.open) {
+          if (note) note.textContent = "This barber is closed on this day.";
+        } else if (bookableOptions.length) {
+          if (note) note.textContent = `${bookableOptions.length} time slots available within business hours.`;
+        } else {
+          if (note) note.textContent = "No available time slots for this day.";
+        }
       } catch (err) {
+        timeSelect.disabled = true;
         if (note) note.textContent = "Could not check availability.";
         console.error(err);
       }
     }
-
 
 
     async function hasDuplicatePendingRequest(barberId, clientUserId, date, time) {
@@ -740,6 +789,14 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
       setSendRequestLoading(true);
 
       try {
+        const businessHours = await getBarberBusinessHoursForDate(selected.id, requestDate);
+        if (!isTimeWithinBusinessHours(requestTime, businessHours)) {
+          alert(businessHours?.open ? "That time is outside the barber's business hours." : "The barber is closed on that day.");
+          await refreshRequestTimeSlots();
+          setSendRequestLoading(false);
+          return;
+        }
+
         const duplicate = await hasDuplicatePendingRequest(selected.id, currentUser.uid, requestDate, requestTime);
         if (duplicate) {
           alert("You already have a request for that date and time.");
