@@ -674,9 +674,9 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           <span class="muted">${formatDate(r.date)} at ${escapeHtml(formatTime(r.time))}</span>
           <span class="small">@${escapeHtml(r.barberUsername || "")} · ${escapeHtml(r.barberName || "Barber")}</span>
           ${r.notes ? `<span class="small">${escapeHtml(r.notes)}</span>` : ""}
-          <span class="btn-row">
+          ${(r.status || "pending") !== "accepted" ? `<span class="btn-row">
             <button class="btn danger" type="button" onclick="deleteBookingRequest('${r.id}')">Delete</button>
-          </span>
+          </span>` : ""}
         </span>
         ${statusPill(r.status)}
       </div>`;
