@@ -10,40 +10,107 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
-    function isOwner(barberId) {
+    function isBarber(barberId) {
       return signedIn() && request.auth.uid == barberId;
     }
 
+    function isBookingClient() {
+      return signedIn() && resource.data.clientUserId == request.auth.uid;
+    }
+
+    function isBookingBarber() {
+      return signedIn() && resource.data.barberId == request.auth.uid;
+    }
+
     match /users/{userId} {
-      allow read, write: if isSelf(userId);
+      allow read, create, update, delete: if isSelf(userId);
     }
 
     match /barbers/{barberId} {
       allow read: if signedIn();
-      allow create, update, delete: if isOwner(barberId);
+      allow create, update, delete: if isBarber(barberId);
     }
 
     match /clients/{clientId} {
-      allow create: if isOwner(request.resource.data.barberId);
-      allow read, update, delete: if isOwner(resource.data.barberId);
+      allow create: if isBarber(request.resource.data.barberId);
+      allow read, update, delete: if isBarber(resource.data.barberId);
     }
 
     match /cuts/{cutId} {
-      allow create: if isOwner(request.resource.data.barberId);
-      allow read, update, delete: if isOwner(resource.data.barberId);
+      allow create: if isBarber(request.resource.data.barberId);
+      allow read, update, delete: if isBarber(resource.data.barberId);
     }
 
     match /appointments/{appointmentId} {
-      allow create: if isOwner(request.resource.data.barberId);
-      allow read, update, delete: if isOwner(resource.data.barberId);
+      allow create: if isBarber(request.resource.data.barberId);
+      allow read, update, delete: if isBarber(resource.data.barberId);
     }
 
     match /bookingRequests/{requestId} {
-      allow create: if signedIn() && request.resource.data.clientUserId == request.auth.uid;
-      allow read, update, delete: if signedIn() && (
-        resource.data.barberId == request.auth.uid ||
-        resource.data.clientUserId == request.auth.uid
-      );
+      allow create: if signedIn()
+        && request.resource.data.clientUserId == request.auth.uid
+        && request.resource.data.status == "pending"
+        && request.resource.data.barberId is string
+        && request.resource.data.clientName is string
+        && request.resource.data.date is string
+        && request.resource.data.time is string
+        && request.resource.data.keys().hasOnly([
+          "barberId", "barberUsername", "barberName",
+          "clientUserId", "clientName", "phone", "email",
+          "service", "date", "time", "notes", "status", "createdAt"
+        ]);
+
+      allow read: if isBookingBarber() || isBookingClient();
+
+      allow update: if isBookingBarber()
+        && request.resource.data.barberId == resource.data.barberId
+        && request.resource.data.clientUserId == resource.data.clientUserId
+        && request.resource.data.date == resource.data.date
+        && request.resource.data.time == resource.data.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status", "acceptedAt", "declinedAt", "cancelledAt",
+          "cancelledBy", "declinedBy", "appointmentId", "linkedClientId"
+        ]);
+
+      allow delete: if (isBookingBarber() || isBookingClient())
+        && resource.data.status != "accepted";
+    }
+
+    match /availabilitySlots/{slotId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && request.resource.data.barberId is string
+        && request.resource.data.date is string
+        && request.resource.data.time is string
+        && request.resource.data.status in ["pending", "scheduled"]
+        && (
+          request.resource.data.barberId == request.auth.uid ||
+          request.resource.data.clientUserId == request.auth.uid
+        )
+        && request.resource.data.keys().hasOnly([
+          "barberId", "clientUserId", "date", "time",
+          "status", "bookingRequestId", "appointmentId", "createdAt"
+        ]);
+
+      allow update: if signedIn()
+        && (
+          resource.data.barberId == request.auth.uid ||
+          resource.data.clientUserId == request.auth.uid
+        )
+        && request.resource.data.barberId == resource.data.barberId
+        && request.resource.data.clientUserId == resource.data.clientUserId
+        && request.resource.data.date == resource.data.date
+        && request.resource.data.time == resource.data.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status", "bookingRequestId", "appointmentId", "updatedAt"
+        ]);
+
+      allow delete: if signedIn()
+        && (
+          resource.data.barberId == request.auth.uid ||
+          resource.data.clientUserId == request.auth.uid
+        );
     }
   }
 }
