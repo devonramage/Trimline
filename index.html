@@ -146,7 +146,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, addDoc, getDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, updateDoc, getDocs, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, addDoc, getDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, updateDoc, getDocs, limit, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
     const firebaseConfig = {
@@ -565,38 +565,31 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     }
 
 
+    function availabilitySlotId(barberId, date, time) {
+      return [barberId, date, time].map(value => String(value || "").replace(/[^a-zA-Z0-9_-]/g, "-")).join("__");
+    }
+
     async function getUnavailableTimesForBarber(barberId, date) {
       if (!barberId || !date) return new Set();
 
       const unavailable = new Set();
-
-      const apptSnap = await getDocs(query(
-        collection(db, "appointments"),
+      const slotSnap = await getDocs(query(
+        collection(db, "availabilitySlots"),
         where("barberId", "==", barberId),
         where("date", "==", date)
       ));
 
-      apptSnap.docs.forEach(d => {
-        const a = d.data();
-        if ((a.status || "scheduled") !== "cancelled" && a.time) unavailable.add(a.time);
-      });
-
-      const requestSnap = await getDocs(query(
-        collection(db, "bookingRequests"),
-        where("barberId", "==", barberId),
-        where("date", "==", date)
-      ));
-
-      requestSnap.docs.forEach(d => {
-        const r = d.data();
-        const status = r.status || "pending";
-        if ((status === "pending" || status === "accepted") && r.time) unavailable.add(r.time);
+      slotSnap.docs.forEach(d => {
+        const slot = d.data();
+        if (["pending", "accepted", "scheduled"].includes(slot.status) && slot.time) {
+          unavailable.add(slot.time);
+        }
       });
 
       return unavailable;
     }
 
-    function timeSlotOptionsWithUnavailable(unavailableTimes = new Set(), selectedValue = "") {
+        function timeSlotOptionsWithUnavailable(unavailableTimes = new Set(), selectedValue = "") {
       const slots = [];
       for (let hour = 6; hour <= 22; hour++) {
         for (let minute of [0, 30]) {
@@ -763,7 +756,11 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           return;
         }
 
-        await addDoc(collection(db, "bookingRequests"), {
+        const requestRef = doc(collection(db, "bookingRequests"));
+        const slotRef = doc(db, "availabilitySlots", availabilitySlotId(selected.id, requestDate, requestTime));
+        const batch = writeBatch(db);
+
+        batch.set(requestRef, {
           barberId: selected.id,
           barberUsername: selected.username || "",
           barberName: selected.name || "",
@@ -778,6 +775,19 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           status: "pending",
           createdAt: serverTimestamp()
         });
+
+        batch.set(slotRef, {
+          barberId: selected.id,
+          clientUserId: currentUser.uid,
+          date: requestDate,
+          time: requestTime,
+          status: "pending",
+          bookingRequestId: requestRef.id,
+          appointmentId: "",
+          createdAt: serverTimestamp()
+        });
+
+        await batch.commit();
 
         closeModal();
         alert("Booking request sent.");
@@ -843,6 +853,17 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           linkedClientId: clientId
         });
 
+        await setDoc(doc(db, "availabilitySlots", availabilitySlotId(currentUser.uid, request.date, request.time)), {
+          barberId: currentUser.uid,
+          clientUserId: request.clientUserId || "",
+          date: request.date,
+          time: request.time,
+          status: "scheduled",
+          bookingRequestId: requestId,
+          appointmentId: appointmentRef.id,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
         alert("Booking accepted and appointment created.");
       } catch (err) {
         alert("Accept failed: " + err.message);
@@ -865,6 +886,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
       try {
         for (const r of oldRequests) {
           await deleteDoc(doc(db, "bookingRequests", r.id));
+          await deleteDoc(doc(db, "availabilitySlots", availabilitySlotId(r.barberId, r.date, r.time))).catch(() => {});
         }
       } catch (err) {
         alert("Clear failed: " + err.message);
@@ -873,9 +895,13 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
 
     window.deleteBookingRequest = async function(requestId) {
       if (!confirm("Delete this booking request?")) return;
+      const request = (state.bookingRequests || []).find(r => r.id === requestId);
 
       try {
         await deleteDoc(doc(db, "bookingRequests", requestId));
+        if (request) {
+          await deleteDoc(doc(db, "availabilitySlots", availabilitySlotId(request.barberId, request.date, request.time))).catch(() => {});
+        }
       } catch (err) {
         alert("Delete failed: " + err.message);
       }
@@ -891,7 +917,40 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     window.openAddCut = function(clientId="") { const selected = clientId || selectedClientId || ""; openModal("Add Cut", `<label>Client</label><select id="cutClient">${state.clients.map(c=>`<option value="${c.id}" ${c.id===selected?"selected":""}>${escapeHtml(c.name)}</option>`).join("")}</select><label>Date</label><input id="cutDate" type="date" value="${getToday()}" /><label>Style</label><input id="cutStyle" placeholder="Example: Mid fade, burst fade, taper" /><label>Tags</label><input id="cutTags" placeholder="mid fade, textured top, beard trim" /><label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;"><input type="checkbox" id="cutPublicToggle" /> Show on Public Profile</label><label>Notes</label><textarea id="cutNotes" placeholder="What guard, shape, blend notes, neckline, etc."></textarea><label>Photos</label><input id="cutPhotos" type="file" accept="image/*" multiple /><div class="btn-row"><button class="btn primary" onclick="addCut()">Save Cut</button></div>`); }
     window.addCut = async function() { const clientId=val("cutClient"); if(!clientId) return alert("Pick a client first."); try { const files=Array.from($("cutPhotos").files||[]).slice(0,6); const photos=[]; for (const file of files) { const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"-"); const path=`barbers/${currentUser.uid}/clients/${clientId}/cuts/${Date.now()}-${safeName}`; const storageRef=ref(storage,path); await uploadBytes(storageRef,file); photos.push(await getDownloadURL(storageRef)); } await addDoc(collection(db,"cuts"), { barberId:currentUser.uid, clientId, date:val("cutDate")||getToday(), style:val("cutStyle"), tags:val("cutTags"), notes:val("cutNotes"), photos, createdAt:serverTimestamp() }); closeModal(); } catch(err) { alert("Cut save failed: " + err.message); } }
     window.openAddAppointment = function(clientId="") { const selected = clientId || selectedClientId || ""; openModal("Add Appointment", `<label>Client</label><select id="apptClient">${state.clients.map(c=>`<option value="${c.id}" ${c.id===selected?"selected":""}>${escapeHtml(c.name)}</option>`).join("")}</select><label>Date</label><input id="apptDate" type="date" value="${getToday()}" /><label>Time</label><select id="apptTime">${timeSlotOptions()}</select><label>Service</label><input id="apptService" placeholder="Fade, taper, beard trim, etc." /><label>Notes</label><textarea id="apptNotes" placeholder="Appointment notes"></textarea><div class="btn-row"><button class="btn primary" onclick="addAppointment()">Save Appointment</button></div>`); }
-    window.addAppointment = async function() { const clientId=val("apptClient"); if(!clientId) return alert("Pick a client."); try { await addDoc(collection(db,"appointments"), { barberId:currentUser.uid, clientId, date:val("apptDate")||getToday(), time:val("apptTime")||"09:00", service:val("apptService"), notes:val("apptNotes"), status:"scheduled", createdAt:serverTimestamp() }); closeModal(); } catch(err) { alert("Appointment save failed: " + err.message); } }
+    window.addAppointment = async function() {
+      const clientId = val("apptClient");
+      if (!clientId) return alert("Pick a client.");
+      try {
+        const appointmentRef = doc(collection(db, "appointments"));
+        const date = val("apptDate") || getToday();
+        const time = val("apptTime") || "09:00";
+        const batch = writeBatch(db);
+        batch.set(appointmentRef, {
+          barberId: currentUser.uid,
+          clientId,
+          date,
+          time,
+          service: val("apptService"),
+          notes: val("apptNotes"),
+          status: "scheduled",
+          createdAt: serverTimestamp()
+        });
+        batch.set(doc(db, "availabilitySlots", availabilitySlotId(currentUser.uid, date, time)), {
+          barberId: currentUser.uid,
+          clientUserId: "",
+          date,
+          time,
+          status: "scheduled",
+          bookingRequestId: "",
+          appointmentId: appointmentRef.id,
+          createdAt: serverTimestamp()
+        });
+        await batch.commit();
+        closeModal();
+      } catch(err) {
+        alert("Appointment save failed: " + err.message);
+      }
+    }
 
     window.markAppointment = async function(id, status) {
       if (status === "cancelled") {
@@ -1245,11 +1304,17 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     }
 
     window.performDeclineBookingRequest = async function(requestId) {
+      const request = (state.bookingRequests || []).find(r => r.id === requestId);
+      if (!request) return alert("Request not found.");
       try {
         await updateDoc(doc(db, "bookingRequests", requestId), {
           status: "declined",
           declinedAt: serverTimestamp(),
           declinedBy: "barber"
+        });
+        await updateDoc(doc(db, "availabilitySlots", availabilitySlotId(request.barberId, request.date, request.time)), {
+          status: "declined",
+          updatedAt: serverTimestamp()
         });
 
         state.bookingRequests = (state.bookingRequests || []).map(r => {
@@ -1480,6 +1545,12 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
             appointmentId
           });
         }
+
+        const slotId = availabilitySlotId(currentUser.uid, appt.date, appt.time);
+        await updateDoc(doc(db, "availabilitySlots", slotId), {
+          status: "cancelled",
+          updatedAt: serverTimestamp()
+        }).catch(() => {});
 
         state.appointments = (state.appointments || []).filter(a => a.id !== appointmentId);
         state.bookingRequests = (state.bookingRequests || []).map(r => {
