@@ -72,8 +72,8 @@ service cloud.firestore {
           "cancelledBy", "declinedBy", "appointmentId", "linkedClientId"
         ]);
 
-      allow delete: if (isBookingBarber() || isBookingClient())
-        && resource.data.status != "accepted";
+      allow delete: if isBookingBarber()
+        || (isBookingClient() && resource.data.status != "accepted");
     }
 
     match /availabilitySlots/{slotId} {
