@@ -99,10 +99,15 @@
       <label>Email</label><input id="signupEmail" type="email" placeholder="you@email.com" />
       <label>Phone <span class="muted" style="text-transform:none;letter-spacing:0;">Recommended, optional</span></label><input id="signupPhone" type="tel" placeholder="Phone number" />
       <label>Password</label><input id="signupPassword" type="password" placeholder="Minimum 6 characters" />
-      <label>Account Permissions</label>
+      <label>Account Type</label>
       <div class="role-grid">
-        <div class="role-card active" id="signupBarberRole" onclick="toggleSignupRole('barber')"><strong>Barber</strong><p class="muted">Manage clients, cuts, and schedule.</p></div>
-        <div class="role-card" id="signupClientRole" onclick="toggleSignupRole('client')"><strong>Client</strong><p class="muted">View cuts and request bookings.</p></div>
+        <div class="role-card" id="signupBarberRole" onclick="toggleSignupRole('barber')"><strong>Barber</strong><p class="muted">Invite code required.</p></div>
+        <div class="role-card active" id="signupClientRole" onclick="toggleSignupRole('client')"><strong>Client</strong><p class="muted">View cuts and request bookings.</p></div>
+      </div>
+      <div id="signupInviteWrap" class="hidden">
+        <label>Barber Invite Code</label>
+        <input id="signupInviteCode" autocomplete="one-time-code" placeholder="TL-XXXX-XXXX-XXXX-XXXX" />
+        <p class="muted" style="margin-top:8px;">Barber accounts are invite-only during the Trimline beta.</p>
       </div>
       <label class="consent-row"><input id="signupLegalConsent" type="checkbox" /><span>I agree to the <button class="legal-inline" type="button" onclick="event.preventDefault(); event.stopPropagation(); openLegalDocument('terms')">Terms of Service</button> and acknowledge the <button class="legal-inline" type="button" onclick="event.preventDefault(); event.stopPropagation(); openLegalDocument('privacy')">Privacy Policy</button>.</span></label>
       <div class="btn-row"><button class="btn primary" id="signupBtn">Create Account</button></div>
@@ -119,10 +124,15 @@
     <div class="card" style="margin-top:18px;">
       <label>Display Name</label><input id="setupName" placeholder="Your name" />
       <label>Phone <span class="muted" style="text-transform:none;letter-spacing:0;">Recommended, optional</span></label><input id="setupPhone" type="tel" placeholder="Phone number" />
-      <label>Account Permissions</label>
+      <label>Account Type</label>
       <div class="role-grid">
-        <button type="button" class="role-card active" id="setupBarberRole" onclick="toggleSetupRole('barber')"><strong>Barber</strong><p class="muted">Full barber dashboard.</p></button>
-        <button type="button" class="role-card" id="setupClientRole" onclick="toggleSetupRole('client')"><strong>Client</strong><p class="muted">Client dashboard.</p></button>
+        <button type="button" class="role-card" id="setupBarberRole" onclick="toggleSetupRole('barber')"><strong>Barber</strong><p class="muted">Invite code required.</p></button>
+        <button type="button" class="role-card active" id="setupClientRole" onclick="toggleSetupRole('client')"><strong>Client</strong><p class="muted">Client dashboard.</p></button>
+      </div>
+      <div id="setupInviteWrap" class="hidden">
+        <label>Barber Invite Code</label>
+        <input id="setupInviteCode" autocomplete="one-time-code" placeholder="TL-XXXX-XXXX-XXXX-XXXX" />
+        <p class="muted" style="margin-top:8px;">Enter the one-time code supplied by Trimline.</p>
       </div>
       <label class="consent-row"><input id="setupLegalConsent" type="checkbox" /><span>I agree to the <button class="legal-inline" type="button" onclick="event.preventDefault(); event.stopPropagation(); openLegalDocument('terms')">Terms of Service</button> and acknowledge the <button class="legal-inline" type="button" onclick="event.preventDefault(); event.stopPropagation(); openLegalDocument('privacy')">Privacy Policy</button>.</span></label>
       <div class="btn-row"><button type="button" class="btn primary" id="finishSetupBtn">Finish Setup</button></div>
@@ -152,7 +162,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, addDoc, getDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, updateDoc, getDocs, limit, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, addDoc, getDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, updateDoc, getDocs, limit, writeBatch, runTransaction, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
     const firebaseConfig = {
@@ -169,7 +179,8 @@
     if (isConfigured) { app = initializeApp(firebaseConfig); auth = getAuth(app); db = getFirestore(app); storage = getStorage(app); }
 
     let currentUser = null, activePage = "dashboard", selectedClientId = null, viewedBarber = null;
-    let signupRoles = ["barber"], setupRoles = ["barber"];
+    const ADMIN_EMAIL = "trimlinedev@gmail.com";
+    let signupRoles = ["client"], setupRoles = ["client"];
     let state = { userProfile:null, barber:null, clients:[], cuts:[], appointments:[], bookingRequests:[] };
     let unsubscribers = [];
     const $ = id => document.getElementById(id);
@@ -203,12 +214,22 @@
     }
     function showApp() { $("loginScreen").classList.add("hidden"); $("signupScreen").classList.add("hidden"); $("roleSetupScreen").classList.add("hidden"); $("appShell").classList.remove("hidden"); setPage("dashboard"); }
 
-    window.toggleSignupRole = function(role) { signupRoles = toggleRole(signupRoles, role); if (!signupRoles.length) signupRoles = [role]; $("signupBarberRole").classList.toggle("active", signupRoles.includes("barber")); $("signupClientRole").classList.toggle("active", signupRoles.includes("client")); }
-    window.toggleSetupRole = function(role) { setupRoles = toggleRole(setupRoles, role); if (!setupRoles.length) setupRoles = [role]; $("setupBarberRole").classList.toggle("active", setupRoles.includes("barber")); $("setupClientRole").classList.toggle("active", setupRoles.includes("client")); }
+    window.toggleSignupRole = function(role) { signupRoles = toggleRole(signupRoles, role); if (!signupRoles.length) signupRoles = [role]; $("signupBarberRole").classList.toggle("active", signupRoles.includes("barber")); $("signupClientRole").classList.toggle("active", signupRoles.includes("client")); $("signupInviteWrap").classList.toggle("hidden", !signupRoles.includes("barber")); }
+    window.toggleSetupRole = function(role) { setupRoles = toggleRole(setupRoles, role); if (!setupRoles.length) setupRoles = [role]; $("setupBarberRole").classList.toggle("active", setupRoles.includes("barber")); $("setupClientRole").classList.toggle("active", setupRoles.includes("client")); $("setupInviteWrap").classList.toggle("hidden", !setupRoles.includes("barber")); }
     function toggleRole(list, role) { return list.includes(role) ? list.filter(r => r !== role) : [...list, role]; }
 
     async function login() { $("loginError").textContent = ""; try { await signInWithEmailAndPassword(auth, val("loginEmail"), val("loginPassword")); } catch(err) { $("loginError").textContent = cleanFirebaseError(err.message); } }
-    async function signup() { $("signupError").textContent = ""; if (!$("signupLegalConsent")?.checked) { $("signupError").textContent = "You must agree to the Terms of Service and acknowledge the Privacy Policy."; return; } try { const cred = await createUserWithEmailAndPassword(auth, val("signupEmail"), val("signupPassword")); await createUserProfile(cred.user, val("signupName"), signupRoles, val("signupPhone")); } catch(err) { $("signupError").textContent = cleanFirebaseError(err.message); } }
+    async function signup() {
+      $("signupError").textContent = "";
+      if (!$("signupLegalConsent")?.checked) { $("signupError").textContent = "You must agree to the Terms of Service and acknowledge the Privacy Policy."; return; }
+      if (signupRoles.includes("barber") && !val("signupInviteCode")) { $("signupError").textContent = "A valid invite code is required for a Barber account."; return; }
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, val("signupEmail"), val("signupPassword"));
+        await createUserProfile(cred.user, val("signupName"), signupRoles, val("signupPhone"), val("signupInviteCode"));
+      } catch(err) {
+        $("signupError").textContent = cleanFirebaseError(err.message);
+      }
+    }
     async function googleSignup() { $("signupError").textContent = ""; if (!$("signupLegalConsent")?.checked) { $("signupError").textContent = "You must agree to the Terms of Service and acknowledge the Privacy Policy."; return; } await googleSignIn(); }
     async function googleSignIn() { $("loginError").textContent = ""; $("signupError").textContent = ""; try { const provider = new GoogleAuthProvider(); const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent); if (isMobile) { await signInWithRedirect(auth, provider); } else { await signInWithPopup(auth, provider); } } catch(err) { $("loginError").textContent = cleanFirebaseError(err.message || "Google sign in failed"); $("signupError").textContent = cleanFirebaseError(err.message || "Google sign in failed"); } }
     async function finishRoleSetup() {
@@ -218,7 +239,8 @@
         return;
       }
       try {
-        await createUserProfile(currentUser, val("setupName") || currentUser.displayName || "New User", setupRoles, val("setupPhone"));
+        if (setupRoles.includes("barber") && !val("setupInviteCode")) throw new Error("A valid invite code is required for a Barber account.");
+        await createUserProfile(currentUser, val("setupName") || currentUser.displayName || "New User", setupRoles, val("setupPhone"), val("setupInviteCode"));
         const profileSnap = await getDoc(doc(db, "users", currentUser.uid));
         state.userProfile = { id: profileSnap.id, ...profileSnap.data() };
         await ensureModeData();
@@ -229,10 +251,58 @@
       }
     }
 
-    async function createUserProfile(user, name, roles, phone = "") {
-      const activeMode = roles.includes("barber") ? "barber" : "client";
-      await setDoc(doc(db, "users", user.uid), { uid:user.uid, email:user.email, name:name || user.displayName || "New User", phone: phone || "", roles, activeMode, termsVersion:"2026-07-21", termsAcceptedAt:serverTimestamp(), privacyVersion:"2026-07-21", privacyAcknowledgedAt:serverTimestamp(), createdAt:serverTimestamp() }, { merge:true });
-      if (roles.includes("barber")) await setDoc(doc(db, "barbers", user.uid), { uid:user.uid, email:user.email, name:name || user.displayName || "New Barber", shopName:"Barber Connect Studio", location:"", bio:"Edit your barber profile.", services:"Fade, Taper, Beard Trim", username:"", usernameLower:"", createdAt:serverTimestamp() }, { merge:true });
+    async function createUserProfile(user, name, requestedRoles, phone = "", inviteCode = "") {
+      const wantsBarber = requestedRoles.includes("barber");
+      const initialRoles = ["client"];
+      await setDoc(doc(db, "users", user.uid), {
+        uid:user.uid, email:user.email, name:name || user.displayName || "New User", phone: phone || "",
+        roles:initialRoles, activeMode:"client", termsVersion:"2026-07-21", termsAcceptedAt:serverTimestamp(),
+        privacyVersion:"2026-07-21", privacyAcknowledgedAt:serverTimestamp(), createdAt:serverTimestamp()
+      }, { merge:true });
+      if (wantsBarber) await redeemBarberInvite(inviteCode, user, name);
+    }
+
+    function normalizeInviteCode(code) {
+      return String(code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    }
+
+    async function hashInviteCode(code) {
+      const normalized = normalizeInviteCode(code);
+      const bytes = new TextEncoder().encode(normalized);
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    async function redeemBarberInvite(code, user, name) {
+      const normalized = normalizeInviteCode(code);
+      if (!normalized.startsWith("TL") || normalized.length < 14) throw new Error("That barber invite code is invalid.");
+      const inviteId = await hashInviteCode(normalized);
+      const inviteRef = doc(db, "barberInvites", inviteId);
+      const accessRef = doc(db, "barberAccess", user.uid);
+      const userRef = doc(db, "users", user.uid);
+
+      await runTransaction(db, async transaction => {
+        const inviteSnap = await transaction.get(inviteRef);
+        if (!inviteSnap.exists()) throw new Error("That barber invite code is invalid.");
+        const invite = inviteSnap.data();
+        if (invite.revoked) throw new Error("That barber invite code was revoked.");
+        if (invite.used) throw new Error("That barber invite code has already been used.");
+        if (!invite.expiresAt || invite.expiresAt.toMillis() <= Date.now()) throw new Error("That barber invite code has expired.");
+
+        const userSnap = await transaction.get(userRef);
+        if (!userSnap.exists()) throw new Error("Finish creating your account before redeeming an invite.");
+        const userData = userSnap.data();
+        const roles = [...new Set([...(userData.roles || ["client"]), "barber"])];
+        transaction.update(inviteRef, { used:true, usedBy:user.uid, usedAt:serverTimestamp() });
+        transaction.set(accessRef, { uid:user.uid, inviteId, grantedBy:invite.createdBy || ADMIN_EMAIL, grantedAt:serverTimestamp() });
+        transaction.update(userRef, { roles, activeMode:"barber", barberAccessGrantedAt:serverTimestamp() });
+      });
+
+      await setDoc(doc(db, "barbers", user.uid), {
+        uid:user.uid, email:user.email, name:name || user.displayName || "New Barber",
+        shopName:"Barber Connect Studio", location:"", bio:"Edit your barber profile.",
+        services:"Fade, Taper, Beard Trim", username:"", usernameLower:"", createdAt:serverTimestamp()
+      }, { merge:true });
     }
     async function ensureModeData() {
       const profile = state.userProfile;
@@ -441,13 +511,23 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
         </div>
 
         <div class="card">
-          <h2>Permissions</h2>
-          <p class="muted">Add or remove account permissions for testing.</p>
-          <div class="btn-row">
-            <button class="btn secondary" onclick="togglePermission('barber')">${roles.includes("barber") ? "Remove Barber" : "Add Barber"}</button>
-            <button class="btn secondary" onclick="togglePermission('client')">${roles.includes("client") ? "Remove Client" : "Add Client"}</button>
+          <h2>Account Access</h2>
+          <p class="muted">${roles.includes("barber") ? "Barber access is active on this account." : "This is a Client account. Barber access requires a one-time Trimline invite."}</p>
+          <div class="tag-wrap">
+            ${roles.map(role => `<span class="pill">${escapeHtml(role.charAt(0).toUpperCase() + role.slice(1))}</span>`).join("")}
           </div>
         </div>
+
+        ${isAdminUser() ? `<div class="card">
+          <h2>Administrator · Barber Invites</h2>
+          <p class="muted">Generate a one-time code. Each code expires after 7 days and can only create one Barber account.</p>
+          <div class="btn-row">
+            <button class="btn primary" type="button" onclick="generateBarberInvite()">Generate Invite</button>
+            <button class="btn secondary" type="button" onclick="loadAdminInvites()">Refresh</button>
+          </div>
+          <div id="newInviteCode"></div>
+          <div id="adminInviteList" class="list"><p class="muted">Tap Refresh to view invite status.</p></div>
+        </div>` : ""}
 
         ${roles.includes("barber") ? `<div class="card">
           <div class="profile-hero">
@@ -535,12 +615,77 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
 
 
     window.switchMode = async function(mode) { if (!state.userProfile.roles.includes(mode)) return alert("You don't have that permission yet."); await updateDoc(doc(db, "users", currentUser.uid), { activeMode: mode }); setPage("dashboard"); }
-    window.togglePermission = async function(role) {
-      let roles = [...(state.userProfile.roles || [])];
-      if (roles.includes(role)) { if (roles.length === 1) return alert("You need at least one permission."); if (!confirm(`Remove ${role} permission? Your data won't be deleted, but that mode will be hidden.`)) return; roles = roles.filter(r => r !== role); } else { roles.push(role); }
-      const active = roles.includes(state.userProfile.activeMode) ? state.userProfile.activeMode : roles[0];
-      await setDoc(doc(db, "users", currentUser.uid), { roles, activeMode: active }, { merge:true });
-      if (roles.includes("barber")) await ensureModeData();
+    window.togglePermission = async function() {
+      alert("Account access is managed by Trimline. Barber access requires a one-time invite code.");
+    }
+
+    function isAdminUser() {
+      return Boolean(currentUser && currentUser.emailVerified && String(currentUser.email || "").toLowerCase() === ADMIN_EMAIL);
+    }
+
+    function makeInviteCode() {
+      const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      const bytes = crypto.getRandomValues(new Uint8Array(16));
+      let raw = "";
+      for (const byte of bytes) raw += alphabet[byte % alphabet.length];
+      return "TL-" + raw.match(/.{1,4}/g).join("-");
+    }
+
+    window.generateBarberInvite = async function() {
+      if (!isAdminUser()) return alert("Administrator access required.");
+      try {
+        const code = makeInviteCode();
+        const inviteId = await hashInviteCode(code);
+        const expiresAt = Timestamp.fromMillis(Date.now() + (7 * 24 * 60 * 60 * 1000));
+        await setDoc(doc(db, "barberInvites", inviteId), {
+          createdBy:currentUser.uid, createdByEmail:currentUser.email, createdAt:serverTimestamp(),
+          expiresAt, revoked:false, used:false, usedBy:null, usedAt:null, codeHint:code.slice(-4)
+        });
+        const target = $("newInviteCode");
+        if (target) target.innerHTML = `<div class="row" style="margin-top:14px;"><span class="row-main"><strong id="generatedInviteCode">${escapeHtml(code)}</strong><span class="muted">Copy this now. The full code is not stored or shown again.</span></span><button class="btn secondary" type="button" onclick="copyGeneratedInvite()">Copy</button></div>`;
+        await loadAdminInvites();
+      } catch (err) {
+        alert("Could not generate invite: " + err.message);
+      }
+    }
+
+    window.copyGeneratedInvite = async function() {
+      const code = $("generatedInviteCode")?.textContent || "";
+      if (!code) return;
+      try { await navigator.clipboard.writeText(code); alert("Invite code copied."); }
+      catch { prompt("Copy this invite code:", code); }
+    }
+
+    window.loadAdminInvites = async function() {
+      if (!isAdminUser()) return;
+      const target = $("adminInviteList");
+      if (!target) return;
+      target.innerHTML = '<p class="muted">Loading invites…</p>';
+      try {
+        const snap = await getDocs(collection(db, "barberInvites"));
+        const invites = snap.docs.map(d => ({ id:d.id, ...d.data() }))
+          .sort((a,b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+        if (!invites.length) { target.innerHTML = '<p class="muted">No invites generated yet.</p>'; return; }
+        target.innerHTML = invites.map(invite => {
+          const expired = invite.expiresAt?.toMillis?.() <= Date.now();
+          const status = invite.revoked ? "Revoked" : invite.used ? "Used" : expired ? "Expired" : "Available";
+          const canRevoke = !invite.revoked && !invite.used && !expired;
+          return `<div class="row"><span class="row-main"><strong>Code ending ${escapeHtml(invite.codeHint || "••••")}</strong><span class="muted">${status} · expires ${invite.expiresAt?.toDate?.().toLocaleDateString() || "Unknown"}</span></span>${canRevoke ? `<button class="btn danger" type="button" onclick="revokeBarberInvite('${invite.id}')">Revoke</button>` : `<span class="pill">${status}</span>`}</div>`;
+        }).join("");
+      } catch (err) {
+        target.innerHTML = `<p class="error">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    window.revokeBarberInvite = async function(inviteId) {
+      if (!isAdminUser()) return alert("Administrator access required.");
+      if (!confirm("Revoke this unused invite code?")) return;
+      try {
+        await updateDoc(doc(db, "barberInvites", inviteId), { revoked:true, revokedAt:serverTimestamp(), revokedBy:currentUser.uid });
+        await loadAdminInvites();
+      } catch (err) {
+        alert("Could not revoke invite: " + err.message);
+      }
     }
 
     function clientById(id) { return state.clients.find(c=>c.id===id); }
