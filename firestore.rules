@@ -10,8 +10,18 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return signedIn() && request.auth.token.email == "trimlinedev@gmail.com";
+    }
+
+    function hasBarberRole(userId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(userId))
+        && get(/databases/$(database)/documents/users/$(userId)).data.roles.hasAny(["barber"]);
+    }
+
     function isBarber(barberId) {
-      return signedIn() && request.auth.uid == barberId;
+      return isSelf(barberId) && hasBarberRole(barberId);
     }
 
     function isBookingClient() {
@@ -19,16 +29,76 @@ service cloud.firestore {
     }
 
     function isBookingBarber() {
-      return signedIn() && resource.data.barberId == request.auth.uid;
+      return signedIn() && resource.data.barberId == request.auth.uid && hasBarberRole(request.auth.uid);
     }
 
     match /users/{userId} {
-      allow read, create, update, delete: if isSelf(userId);
+      allow read: if isSelf(userId) || isAdmin();
+
+      allow create: if isSelf(userId)
+        && request.resource.data.roles == ["client"]
+        && request.resource.data.activeMode == "client";
+
+      allow update: if isAdmin()
+        || (isSelf(userId) && (
+          (
+            request.resource.data.roles == resource.data.roles
+            && request.resource.data.activeMode in resource.data.roles
+          )
+          ||
+          (
+            !resource.data.roles.hasAny(["barber"])
+            && request.resource.data.roles.hasAny(["barber"])
+            && request.resource.data.roles.size() == resource.data.roles.size() + 1
+            && request.resource.data.activeMode == "barber"
+            && getAfter(/databases/$(database)/documents/barberAccess/$(userId)).data.uid == userId
+          )
+        ));
+
+      allow delete: if isSelf(userId) || isAdmin();
+    }
+
+    match /barberInvites/{inviteId} {
+      allow get: if signedIn();
+      allow list: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.used == false
+        && request.resource.data.revoked == false
+        && request.resource.data.expiresAt > request.time;
+
+      allow update: if isAdmin()
+        || (
+          signedIn()
+          && resource.data.used == false
+          && resource.data.revoked == false
+          && resource.data.expiresAt > request.time
+          && request.resource.data.used == true
+          && request.resource.data.usedBy == request.auth.uid
+          && request.resource.data.usedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "used", "usedBy", "usedAt"
+          ])
+          && getAfter(/databases/$(database)/documents/barberAccess/$(request.auth.uid)).data.inviteId == inviteId
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    match /barberAccess/{userId} {
+      allow read: if isSelf(userId) || isAdmin();
+      allow create: if isSelf(userId)
+        && request.resource.data.uid == userId
+        && request.resource.data.inviteId is string
+        && request.resource.data.grantedAt == request.time
+        && getAfter(/databases/$(database)/documents/barberInvites/$(request.resource.data.inviteId)).data.used == true
+        && getAfter(/databases/$(database)/documents/barberInvites/$(request.resource.data.inviteId)).data.usedBy == userId;
+      allow update, delete: if isAdmin();
     }
 
     match /barbers/{barberId} {
       allow read: if signedIn();
-      allow create, update, delete: if isBarber(barberId);
+      allow create, update, delete: if isBarber(barberId) || isAdmin();
     }
 
     match /clients/{clientId} {
@@ -85,7 +155,7 @@ service cloud.firestore {
         && request.resource.data.time is string
         && request.resource.data.status in ["pending", "scheduled"]
         && (
-          request.resource.data.barberId == request.auth.uid ||
+          isBarber(request.resource.data.barberId) ||
           request.resource.data.clientUserId == request.auth.uid
         )
         && request.resource.data.keys().hasOnly([
@@ -95,7 +165,7 @@ service cloud.firestore {
 
       allow update: if signedIn()
         && (
-          resource.data.barberId == request.auth.uid ||
+          isBarber(resource.data.barberId) ||
           resource.data.clientUserId == request.auth.uid
         )
         && request.resource.data.barberId == resource.data.barberId
@@ -108,7 +178,7 @@ service cloud.firestore {
 
       allow delete: if signedIn()
         && (
-          resource.data.barberId == request.auth.uid ||
+          isBarber(resource.data.barberId) ||
           resource.data.clientUserId == request.auth.uid
         );
     }
