@@ -575,7 +575,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     window.openLegalDocument = function(kind) {
       const isTerms = kind === "terms";
       const title = isTerms ? "Terms of Service" : "Privacy Policy";
-      const file = isTerms ? "terms.html" : "privacy.html";
+      const file = (isTerms ? "terms.html" : "privacy.html") + "?embed=1";
       openModal(title, '<iframe class="legal-frame" src="' + file + '" title="' + title + '"></iframe>');
     }
 
