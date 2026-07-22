@@ -198,13 +198,23 @@
       });
 
       onAuthStateChanged(auth, async user => {
-        unsubscribers.forEach(u => u()); unsubscribers = []; currentUser = user;
+        unsubscribers.forEach(u => u());
+        unsubscribers = [];
+        resetAccountState();
+        currentUser = user;
         if (!user) { showAuth("login"); $("appShell").classList.add("hidden"); return; }
         const profileSnap = await getDoc(doc(db, "users", user.uid));
         if (!profileSnap.exists()) { $("setupName").value = user.displayName || ""; showAuth("setup"); $("appShell").classList.add("hidden"); return; }
         state.userProfile = { id: profileSnap.id, ...profileSnap.data() };
         await ensureModeData(); showApp(); subscribeToData();
       });
+    }
+
+    function resetAccountState() {
+      activePage = "dashboard";
+      selectedClientId = null;
+      viewedBarber = null;
+      state = { userProfile:null, barber:null, clients:[], cuts:[], appointments:[], bookingRequests:[] };
     }
 
     function showAuth(which) {
