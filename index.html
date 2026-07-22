@@ -211,7 +211,23 @@
     async function signup() { $("signupError").textContent = ""; if (!$("signupLegalConsent")?.checked) { $("signupError").textContent = "You must agree to the Terms of Service and acknowledge the Privacy Policy."; return; } try { const cred = await createUserWithEmailAndPassword(auth, val("signupEmail"), val("signupPassword")); await createUserProfile(cred.user, val("signupName"), signupRoles, val("signupPhone")); } catch(err) { $("signupError").textContent = cleanFirebaseError(err.message); } }
     async function googleSignup() { $("signupError").textContent = ""; if (!$("signupLegalConsent")?.checked) { $("signupError").textContent = "You must agree to the Terms of Service and acknowledge the Privacy Policy."; return; } await googleSignIn(); }
     async function googleSignIn() { $("loginError").textContent = ""; $("signupError").textContent = ""; try { const provider = new GoogleAuthProvider(); const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent); if (isMobile) { await signInWithRedirect(auth, provider); } else { await signInWithPopup(auth, provider); } } catch(err) { $("loginError").textContent = cleanFirebaseError(err.message || "Google sign in failed"); $("signupError").textContent = cleanFirebaseError(err.message || "Google sign in failed"); } }
-    async function finishRoleSetup() { $("setupError").textContent = ""; if (!$("setupLegalConsent")?.checked) { $("setupError").textContent = "You must agree to the Terms of Service and acknowledge the Privacy Policy."; return; } try { await createUserProfile(currentUser, val("setupName") || currentUser.displayName || "New User", setupRoles, val("setupPhone")); } catch(err) { $("setupError").textContent = cleanFirebaseError(err.message); } }
+    async function finishRoleSetup() {
+      $("setupError").textContent = "";
+      if (!$("setupLegalConsent")?.checked) {
+        $("setupError").textContent = "You must agree to the Terms of Service and acknowledge the Privacy Policy.";
+        return;
+      }
+      try {
+        await createUserProfile(currentUser, val("setupName") || currentUser.displayName || "New User", setupRoles, val("setupPhone"));
+        const profileSnap = await getDoc(doc(db, "users", currentUser.uid));
+        state.userProfile = { id: profileSnap.id, ...profileSnap.data() };
+        await ensureModeData();
+        showApp();
+        subscribeToData();
+      } catch(err) {
+        $("setupError").textContent = cleanFirebaseError(err.message);
+      }
+    }
 
     async function createUserProfile(user, name, roles, phone = "") {
       const activeMode = roles.includes("barber") ? "barber" : "client";
