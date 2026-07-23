@@ -315,6 +315,67 @@
         services:"Fade, Taper, Beard Trim", username:"", usernameLower:"", createdAt:serverTimestamp()
       }, { merge:true });
     }
+    window.openExistingBarberInvite = function() {
+      if (state.userProfile?.roles?.includes("barber")) return alert("Barber access is already active.");
+      openModal("Activate Barber Access", `
+        <p class="muted">Enter a valid one-time Trimline barber invite code to add Barber Mode to this account.</p>
+        <label>Barber Invite Code</label>
+        <input id="existingBarberInviteCode" autocomplete="off" autocapitalize="characters" placeholder="TL-XXXX-XXXX-XXXX-XXXX">
+        <p id="existingBarberInviteError" class="error"></p>
+        <div class="btn-row">
+          <button class="btn secondary" type="button" onclick="closeModal()">Cancel</button>
+          <button class="btn primary" id="redeemExistingInviteBtn" type="button" onclick="submitExistingBarberInvite()">Activate Barber Access</button>
+        </div>
+      `);
+      setTimeout(() => $("existingBarberInviteCode")?.focus(), 50);
+    }
+
+    window.submitExistingBarberInvite = async function() {
+      const errorTarget = $("existingBarberInviteError");
+      const submitButton = $("redeemExistingInviteBtn");
+      if (errorTarget) errorTarget.textContent = "";
+      if (!currentUser || !state.userProfile) return alert("Please sign in again.");
+      if (state.userProfile.roles?.includes("barber")) {
+        closeModal();
+        return alert("Barber access is already active.");
+      }
+
+      const code = val("existingBarberInviteCode");
+      if (!code) {
+        if (errorTarget) errorTarget.textContent = "Enter your barber invite code.";
+        return;
+      }
+
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = "Activating...";
+      }
+
+      try {
+        await redeemBarberInvite(code, currentUser, state.userProfile.name);
+        const profileSnap = await getDoc(doc(db, "users", currentUser.uid));
+        state.userProfile = { id:profileSnap.id, ...profileSnap.data() };
+        await ensureModeData();
+        const barberSnap = await getDoc(doc(db, "barbers", currentUser.uid));
+        state.barber = barberSnap.exists() ? { id:barberSnap.id, ...barberSnap.data() } : null;
+
+        unsubscribers.forEach(unsubscribe => unsubscribe());
+        unsubscribers = [];
+        closeModal();
+        updateModeUI();
+        render();
+        subscribeToData();
+        setPage("profile");
+        alert("Barber access activated. You can now switch between Barber and Client modes.");
+      } catch (err) {
+        if (errorTarget) errorTarget.textContent = cleanFirebaseError(err.message || "Could not activate barber access.");
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.textContent = "Activate Barber Access";
+        }
+      }
+    }
+
     async function ensureModeData() {
       const profile = state.userProfile;
       if (profile.roles?.includes("barber")) {
@@ -527,6 +588,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
           <div class="tag-wrap">
             ${roles.map(role => `<span class="pill">${escapeHtml(role.charAt(0).toUpperCase() + role.slice(1))}</span>`).join("")}
           </div>
+          ${!roles.includes("barber") ? `<div class="btn-row"><button class="btn primary" type="button" onclick="openExistingBarberInvite()">Enter Barber Invite Code</button></div>` : ""}
         </div>
 
         ${isAdminUser() ? `<div class="card">
