@@ -84,7 +84,9 @@
       <label>Email</label><input id="loginEmail" type="email" placeholder="you@email.com" />
       <label>Password</label><input id="loginPassword" type="password" placeholder="Password" />
       <div class="btn-row"><button class="btn primary" id="loginBtn">Login</button></div>
+      <div style="text-align:right;margin-top:8px;"><button class="auth-link" id="forgotPasswordBtn">Forgot Password?</button></div>
       <div class="btn-row"><button class="btn secondary google-btn" id="googleLoginBtn">Continue with Google</button></div>
+      <p id="loginMessage" class="muted" style="margin-top:10px;"></p>
       <p class="muted" style="margin-top:14px;">Don't have an account? <button class="auth-link" id="showSignupBtn">Sign up</button></p>
       <p id="loginError" class="error"></p>
       <p class="legal-links"><a href="terms.html">Terms of Service</a> · <a href="privacy.html">Privacy Policy</a></p>
@@ -161,7 +163,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, doc, setDoc, addDoc, getDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, updateDoc, getDocs, limit, writeBatch, runTransaction, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
@@ -189,7 +191,7 @@
     if (!isConfigured) {
       $("loginError").textContent = "Firebase config missing.";
     } else {
-      $("loginBtn").onclick = login; $("signupBtn").onclick = signup; $("googleLoginBtn").onclick = googleSignIn; $("googleSignupBtn").onclick = googleSignup;
+      $("loginBtn").onclick = login; $("forgotPasswordBtn").onclick = resetPassword; $("signupBtn").onclick = signup; $("googleLoginBtn").onclick = googleSignIn; $("googleSignupBtn").onclick = googleSignup;
       $("showSignupBtn").onclick = () => showAuth("signup"); $("showLoginBtn").onclick = () => showAuth("login"); $("finishSetupBtn").onclick = finishRoleSetup;
 
 
@@ -229,7 +231,18 @@
     window.toggleSetupRole = function(role) { setupRoles = toggleRole(setupRoles, role); if (!setupRoles.length) setupRoles = [role]; $("setupBarberRole").classList.toggle("active", setupRoles.includes("barber")); $("setupClientRole").classList.toggle("active", setupRoles.includes("client")); $("setupInviteWrap").classList.toggle("hidden", !setupRoles.includes("barber")); }
     function toggleRole(list, role) { return list.includes(role) ? list.filter(r => r !== role) : [...list, role]; }
 
-    async function login() { $("loginError").textContent = ""; try { await signInWithEmailAndPassword(auth, val("loginEmail"), val("loginPassword")); } catch(err) { $("loginError").textContent = cleanFirebaseError(err.message); } }
+    async function login() { $("loginError").textContent = ""; $("loginMessage").textContent = ""; try { await signInWithEmailAndPassword(auth, val("loginEmail"), val("loginPassword")); } catch(err) { $("loginError").textContent = cleanFirebaseError(err.message); } }
+    async function resetPassword() {
+      $("loginError").textContent = ""; $("loginMessage").textContent = "";
+      const email = val("loginEmail").trim();
+      if (!email) { $("loginError").textContent = "Enter your email address first."; return; }
+      try {
+        await sendPasswordResetEmail(auth, email);
+        $("loginMessage").textContent = "Password reset email sent. Check your inbox and spam folder.";
+      } catch(err) {
+        $("loginError").textContent = cleanFirebaseError(err.message);
+      }
+    }
     async function signup() {
       $("signupError").textContent = "";
       if (!$("signupLegalConsent")?.checked) { $("signupError").textContent = "You must agree to the Terms of Service and acknowledge the Privacy Policy."; return; }
