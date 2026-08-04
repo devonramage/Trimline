@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Barber Connect</title>
+  <title>Trimline</title>
   <meta name="theme-color" content="#050505" />
   <style>
     :root {
@@ -23,7 +23,7 @@
     .brand-row{display:flex;align-items:center;justify-content:space-between;gap:14px}
     .logo-mark{width:42px;height:42px;border:1px solid var(--border);border-radius:14px;display:grid;place-items:center;font-weight:900;background:linear-gradient(145deg,#1a1a1a,#050505);letter-spacing:-2px}
     .brand-copy{flex:1}.eyebrow{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.13em;margin-bottom:3px}
-    h1,h2,h3,p{margin:0} h1{font-size:26px;letter-spacing:-.05em} h2{font-size:21px;letter-spacing:-.04em;margin-bottom:12px} h3{font-size:16px;letter-spacing:-.02em;margin-bottom:6px}
+    h1,h2,h3,p{margin:0} h1,h2,h3{letter-spacing:-.015em;text-shadow:0 1px 2px rgba(0,0,0,.9)} h1{font-size:26px} h2{font-size:21px;margin-bottom:12px} h3{font-size:16px;margin-bottom:6px}
     .page{display:none;padding:12px 18px 24px;animation:fadeIn 160ms ease}.page.active{display:block}
     @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
     .grid{display:grid;gap:12px}.grid-2{grid-template-columns:1fr 1fr}
@@ -47,7 +47,7 @@
     .photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.photo-box{aspect-ratio:1;border-radius:13px;background:#080808;border:1px solid var(--border);overflow:hidden;display:grid;place-items:center;color:var(--muted);font-size:12px}.photo-box img{width:100%;height:100%;object-fit:cover}
     .profile-hero{display:flex;gap:14px;align-items:center}.avatar{width:64px;height:64px;border-radius:20px;background:white;color:black;display:grid;place-items:center;font-weight:900;font-size:22px}
     .empty{color:var(--muted);border:1px dashed var(--border);border-radius:var(--radius);padding:20px;text-align:center}.tag-wrap{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}.detail-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
-    .auth-screen{min-height:100vh;max-width:520px;margin:0 auto;padding:36px 18px;display:grid;align-content:center}.auth-logo{font-size:42px;font-weight:950;letter-spacing:-.08em;margin-bottom:8px}.error{color:#ff8b8b;font-size:13px;margin-top:10px}
+    .auth-screen{min-height:100vh;max-width:520px;margin:0 auto;padding:36px 18px;display:grid;align-content:center}.auth-logo{font-size:42px;font-weight:950;letter-spacing:-.035em;margin-bottom:8px;text-shadow:0 2px 10px rgba(0,0,0,.9),0 0 1px rgba(255,255,255,.35)}.error{color:#ff8b8b;font-size:13px;margin-top:10px}
     .role-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
     .role-card{border:1px solid var(--border);background:#0b0b0b;border-radius:16px;padding:14px;cursor:pointer}.role-card.active{border-color:#fff;background:#181818}
     .auth-link{background:transparent;border:0;color:#fff;text-decoration:underline;padding:0;cursor:pointer;font-weight:700}
@@ -78,7 +78,7 @@
 </head>
 <body>
   <div id="loginScreen" class="auth-screen">
-    <div class="auth-logo">Barber Connect</div>
+    <div class="auth-logo">Trimline</div>
     <p class="muted">Sign in to your barber or client account.</p>
     <div class="card" style="margin-top:18px;">
       <label>Email</label><input id="loginEmail" type="email" placeholder="you@email.com" />
@@ -122,7 +122,7 @@
 
   <div id="roleSetupScreen" class="auth-screen hidden">
     <div class="auth-logo">One more thing</div>
-    <p class="muted">Choose how you want to use Barber Connect.</p>
+    <p class="muted">Choose how you want to use Trimline.</p>
     <div class="card" style="margin-top:18px;">
       <label>Display Name</label><input id="setupName" placeholder="Your name" />
       <label>Phone <span class="muted" style="text-transform:none;letter-spacing:0;">Recommended, optional</span></label><input id="setupPhone" type="tel" placeholder="Phone number" />
@@ -143,7 +143,7 @@
   </div>
 
   <div id="appShell" class="app-shell hidden">
-    <header><div class="brand-row"><div class="logo-mark">BC</div><div class="brand-copy"><div class="eyebrow" id="syncStatus">Firebase MVP</div><h1 id="pageTitle">Dashboard</h1></div></div></header>
+    <header><div class="brand-row"><div class="logo-mark">TL</div><div class="brand-copy"><div class="eyebrow" id="syncStatus">Firebase MVP</div><h1 id="pageTitle">Dashboard</h1></div></div></header>
     <div class="mode-banner"><span class="pill" id="modePill">Mode: Barber</span></div>
     <main>
       <section id="dashboard" class="page active"></section>
@@ -168,13 +168,12 @@
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
     const firebaseConfig = {
-  apiKey: "AIzaSyBVmZRCXNxIa4c6b8Q_61BdC4BygI9q2q4",
-  authDomain: "trimlinev2.firebaseapp.com",
-  projectId: "trimlinev2",
-  storageBucket: "trimlinev2.firebasestorage.app",
-  messagingSenderId: "921258228784",
-  appId: "1:921258228784:web:b383cebb2d78f981ad41f5",
-  measurementId: "G-BT9KGM4CGN"
+  apiKey: "AIzaSyBD60EjYQyvovg26-tv-g0VdGPGDxulFnA",
+  authDomain: "trimline-dev.firebaseapp.com",
+  projectId: "trimline-dev",
+  storageBucket: "trimline-dev.firebasestorage.app",
+  messagingSenderId: "164085353535",
+  appId: "1:164085353535:web:9a40b1113e75efcc3efc8a"
 };
 
     const isConfigured = !firebaseConfig.apiKey.includes("PASTE_");
@@ -324,7 +323,7 @@
 
       await setDoc(doc(db, "barbers", user.uid), {
         uid:user.uid, email:user.email, name:name || user.displayName || "New Barber",
-        shopName:"Barber Connect Studio", location:"", bio:"Edit your barber profile.",
+        shopName:"Trimline Studio", location:"", bio:"Edit your barber profile.",
         services:"Fade, Taper, Beard Trim", username:"", usernameLower:"", createdAt:serverTimestamp()
       }, { merge:true });
     }
@@ -393,7 +392,7 @@
       const profile = state.userProfile;
       if (profile.roles?.includes("barber")) {
         const barberSnap = await getDoc(doc(db, "barbers", currentUser.uid));
-        if (!barberSnap.exists()) await setDoc(doc(db, "barbers", currentUser.uid), { uid:currentUser.uid, email:currentUser.email, name:profile.name || "New Barber", shopName:"Barber Connect Studio", location:"", bio:"Edit your barber profile.", services:"Fade, Taper, Beard Trim", username:"", usernameLower:"", createdAt:serverTimestamp() });
+        if (!barberSnap.exists()) await setDoc(doc(db, "barbers", currentUser.uid), { uid:currentUser.uid, email:currentUser.email, name:profile.name || "New Barber", shopName:"Trimline Studio", location:"", bio:"Edit your barber profile.", services:"Fade, Taper, Beard Trim", username:"", usernameLower:"", createdAt:serverTimestamp() });
       }
     }
 
@@ -617,7 +616,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
 
         ${roles.includes("barber") ? `<div class="card">
           <div class="profile-hero">
-            <div class="avatar">${initials(b.name||profile.name||"BC")}</div>
+            <div class="avatar">${initials(b.name||profile.name||"TL")}</div>
             <div>
               <h2>${escapeHtml(b.name||profile.name||"Barber")}</h2>
               <p class="muted">${escapeHtml(b.shopName||"Shop")}</p>
@@ -1454,7 +1453,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
         <div class="barber-profile-cover" style="margin-top:12px;"></div>
         <div class="card barber-profile-card">
           <div class="profile-hero">
-            <div class="avatar">${initials(barber.name || "BC")}</div>
+            <div class="avatar">${initials(barber.name || "TL")}</div>
             <div>
               <h2>${escapeHtml(barber.name || "Barber")}</h2>
               <p class="profile-handle">@${escapeHtml(barber.username || barber.usernameLower || "")}</p>
@@ -1795,7 +1794,7 @@ function setPage(page) { activePage = page; document.querySelectorAll(".page").f
     function val(id) { return $(id)?.value.trim() || ""; }
     function getToday() { return new Date().toISOString().split("T")[0]; }
     function formatDate(dateStr) { if(!dateStr) return "No date"; const d=new Date(dateStr+"T00:00:00"); return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); }
-    function initials(name) { return (name||"BC").split(" ").map(n=>n[0]).slice(0,2).join("").toUpperCase(); }
+    function initials(name) { return (name||"TL").split(" ").map(n=>n[0]).slice(0,2).join("").toUpperCase(); }
     function escapeHtml(str="") { return String(str).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
     function escapeAttr(str="") { return escapeHtml(str).replaceAll("\n"," "); }
     function cleanFirebaseError(msg) { return msg.replace("Firebase: ","").replace(/\s*\(auth\/.+?\)\.?/,""); }
